@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+dist/
+build/
+.next/
+out/
+
+### Environment
+##.env
+#.env.local
+#.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Hardhat
+cache/
+artifacts/
+typechain-types/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+
+# Documentation (generated)
+*.md
+!README.md
+
+# Test files
+**/test-*.ts
+**/test-*.js
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+
+# Unused/temporary files
+*.zip
+*.log
+private\ keys.txt
