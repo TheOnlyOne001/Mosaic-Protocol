@@ -256,7 +256,9 @@ cd backend && npm run dev
 cd frontend && npm run dev
 ```
 
-🌐 **Access at:** http://localhost:3000 → Click "Launch App" to begin!
+🌐 **Live Demo:** https://mosaicprotocol.vercel.app → Click "Launch App" to begin!
+
+**Local Development:** http://localhost:3000
 
 ## Project Structure
 
