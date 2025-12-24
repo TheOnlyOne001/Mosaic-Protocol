@@ -5,7 +5,7 @@ import type { WSEvent } from '@/lib/types';
 
 function getWsUrl(): string {
     if (typeof window === 'undefined') {
-        return process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+        return process.env.NEXT_PUBLIC_WS_URL || 'wss://mosaic-protocol.onrender.com';
     }
     
     try {
@@ -21,7 +21,7 @@ function getWsUrl(): string {
         console.error('Failed to get stored backend URL:', e);
     }
     
-    return process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+    return process.env.NEXT_PUBLIC_WS_URL || 'wss://mosaic-protocol.onrender.com';
 }
 
 export function useSocket() {

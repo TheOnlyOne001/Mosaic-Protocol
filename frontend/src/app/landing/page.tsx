@@ -14,7 +14,7 @@ const getApiUrl = () => {
   if (typeof window !== 'undefined') {
     return getBackendUrl();
   }
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+  return process.env.NEXT_PUBLIC_API_URL || 'https://mosaic-protocol.onrender.com';
 };
 
 const NeuralNetwork = dynamic(
