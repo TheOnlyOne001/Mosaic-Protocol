@@ -256,7 +256,7 @@ cd backend && npm run dev
 cd frontend && npm run dev
 ```
 
-Access at http://localhost:3000
+🌐 **Access at:** http://localhost:3000 → Click "Launch App" to begin!
 
 ## Project Structure
 
