@@ -1,6 +1,6 @@
-# OnChain Analyst Agent - Testing Guide
+﻿# OnChain Analyst Agent - Testing Guide
 
-## 🎯 Quick Start
+## Quick Start
 
 ### Run Basic Tests (5 scenarios, ~2 minutes)
 ```bash
@@ -19,7 +19,7 @@ npx tsx backend/src/agents/onchain/test-scenarios.ts --test 3
 
 ---
 
-## 📋 10 Test Scenarios
+## 10 Test Scenarios
 
 | # | Scenario | What It Tests | Duration |
 |---|----------|---------------|----------|
@@ -36,17 +36,17 @@ npx tsx backend/src/agents/onchain/test-scenarios.ts --test 3
 
 ---
 
-## 🧪 Test Examples
+## Test Examples
 
 ### Example 1: Balance Check
 ```typescript
 Task: "What is the balance of 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb on Base?"
 
 Expected Output:
-✅ Address type (EOA/Contract)
-✅ Native balance in ETH
-✅ Block number
-✅ Chain confirmation
+- Address type (EOA/Contract)
+- Native balance in ETH
+- Block number
+- Chain confirmation
 
 Time: ~1 second
 ```
@@ -56,11 +56,11 @@ Time: ~1 second
 Task: "Profile wallet 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb on Base"
 
 Expected Output:
-✅ Wallet type (trader/whale/bot/holder)
-✅ Confidence score
-✅ Activity statistics
-✅ Behavioral patterns with evidence
-✅ Risk assessment
+- Wallet type (trader/whale/bot/holder)
+- Confidence score
+- Activity statistics
+- Behavioral patterns with evidence
+- Risk assessment
 
 Time: ~8 seconds
 ```
@@ -70,35 +70,35 @@ Time: ~8 seconds
 Task: "Decode transaction 0xabc... on Base"
 
 Expected Output:
-✅ Function called
-✅ High-level actions
-✅ Token transfers
-✅ Events emitted
-✅ Gas cost
+- Function called
+- High-level actions
+- Token transfers
+- Events emitted
+- Gas cost
 
 Time: ~2 seconds
 ```
 
 ---
 
-## 📊 Success Criteria
+## Success Criteria
 
 **Each test should:**
-- ✅ Complete without errors
-- ✅ Return structured output
-- ✅ Include verification data (block numbers, TX hashes)
-- ✅ Complete within expected time
-- ✅ Use correct capabilities
+- Complete without errors
+- Return structured output
+- Include verification data (block numbers, TX hashes)
+- Complete within expected time
+- Use correct capabilities
 
 **Overall Suite:**
-- ✅ 100% pass rate on basic scenarios
-- ✅ 80%+ pass rate with edge cases
-- ✅ Average response < 5 seconds
-- ✅ No RPC errors
+- 100% pass rate on basic scenarios
+- 80%+ pass rate with edge cases
+- Average response < 5 seconds
+- No RPC errors
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
 ### Required Environment Variables
 ```bash
@@ -121,13 +121,13 @@ INFURA_API_KEY=...
 
 ---
 
-## 🐛 Common Issues
+## Common Issues
 
 ### Issue: RPC Rate Limiting
 ```
 Error: "RPC call failed after retries"
 ```
-**Solution:** 
+**Solution:**
 - Add delays between requests (done automatically)
 - Use API keys for higher limits
 - Reduce test concurrency
@@ -152,7 +152,7 @@ Tests taking 2-3x expected time
 
 ---
 
-## 📈 Performance Optimization
+## Performance Optimization
 
 ### For Faster Tests
 ```typescript
@@ -174,35 +174,35 @@ const profile = await profiler.profileWallet(chain, address, {
 
 ---
 
-## 🎯 What Each Test Validates
+## What Each Test Validates
 
 ### **Infrastructure Tests**
-- ✅ RPC connection pooling
-- ✅ Rate limiting
-- ✅ Retry logic
-- ✅ Multi-chain support
+- RPC connection pooling
+- Rate limiting
+- Retry logic
+- Multi-chain support
 
 ### **Decoding Tests**
-- ✅ Function selector matching
-- ✅ Parameter extraction
-- ✅ Event log parsing
-- ✅ Action interpretation
+- Function selector matching
+- Parameter extraction
+- Event log parsing
+- Action interpretation
 
 ### **Analysis Tests**
-- ✅ Pattern detection algorithms
-- ✅ Classification logic
-- ✅ Risk scoring model
-- ✅ Evidence collection
+- Pattern detection algorithms
+- Classification logic
+- Risk scoring model
+- Evidence collection
 
 ### **Edge Case Tests**
-- ✅ Invalid input handling
-- ✅ Empty data scenarios
-- ✅ Special addresses
-- ✅ Error recovery
+- Invalid input handling
+- Empty data scenarios
+- Special addresses
+- Error recovery
 
 ---
 
-## 📝 Test Output Format
+## Test Output Format
 
 ### Successful Test
 ```
@@ -213,18 +213,18 @@ const profile = await profiler.profileWallet(chain, address, {
   Task: Decode transaction 0x8f5e8c...
   Chain: base
 
-  ✅ PASSED (2345ms)
+  PASSED (2345ms)
 
   Output Preview:
   --------------------------------------------------------------------------
   ### Transaction: 0x8f5e8c...
-  
-  **Status:** ✅ Success
+
+  **Status:** Success
   **Block:** 12345678
   **Function Called:** execute
-  
+
   ### Actions Detected:
-  - Uniswap → swap: Swapped 1000 USDC for 0.345 WETH
+  - Uniswap -> swap: Swapped 1000 USDC for 0.345 WETH
   ... (15 more lines)
 ```
 
@@ -237,7 +237,7 @@ const profile = await profiler.profileWallet(chain, address, {
   Task: Decode transaction 0xINVALID...
   Chain: base
 
-  ❌ FAILED (1234ms)
+  FAILED (1234ms)
      Error: Transaction not found
 
   Output Preview:
@@ -247,18 +247,18 @@ const profile = await profiler.profileWallet(chain, address, {
 
 ---
 
-## 📊 Final Summary
+## Final Summary
 
-After running all tests, you'll see:
+After running all tests, you will see:
 ```
 ===============================================================================
-📊 TEST SUMMARY
+TEST SUMMARY
 ===============================================================================
 
   Total Tests:     10
-  ✅ Passed:       9 (90.0%)
-  ❌ Failed:       1 (10.0%)
-  ⏱️  Avg Duration: 3456ms
+  Passed:          9 (90.0%)
+  Failed:          1 (10.0%)
+  Avg Duration:    3456ms
 
   Capabilities Used:
     - decode_transaction: 5 times
@@ -271,7 +271,7 @@ After running all tests, you'll see:
 
 ---
 
-## 🚀 Next Steps
+## Next Steps
 
 After validating with tests:
 
@@ -292,7 +292,7 @@ After validating with tests:
 
 ---
 
-## 📚 Additional Resources
+## Additional Resources
 
 - **Full Test Documentation:** [ONCHAIN_TEST_SCENARIOS.md](../../../ONCHAIN_TEST_SCENARIOS.md)
 - **Agent Implementation:** [OnChainAnalystAgent.ts](../OnChainAnalystAgent.ts)
@@ -301,5 +301,5 @@ After validating with tests:
 
 ---
 
-*OnChain Analyst Agent v1.0*  
+*OnChain Analyst Agent v1.0*
 *Part of Mosaic Protocol Agent Marketplace*

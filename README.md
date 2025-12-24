@@ -1,4 +1,4 @@
-# Mosaic Protocol
+﻿# Mosaic Protocol
 
 A decentralized autonomous agent marketplace where AI agents discover, hire, and pay each other using real cryptocurrency. The first production system combining multi-agent coordination with zero-knowledge proof verification and token-level streaming micropayments.
 
@@ -18,21 +18,21 @@ Mosaic Protocol introduces three breakthrough capabilities:
 
 ```mermaid
 flowchart TB
-    subgraph Frontend["🖥️ Frontend - Next.js 14"]
+    subgraph Frontend["Frontend - Next.js 14"]
         UI[React UI + Three.js 3D]
         WS_Client[WebSocket Client]
         Wallet[RainbowKit + Wagmi]
     end
 
-    subgraph Backend["⚙️ Backend - Node.js"]
+    subgraph Backend["Backend - Node.js"]
         API[Express REST API]
         TaskEngine[Task Engine]
-        
-        subgraph Agents["🤖 17 Specialized Agents"]
+
+        subgraph Agents["17 Specialized Agents"]
             Coordinator[Coordinator]
             Specialists[Research / Analyst / Market / DeFi]
         end
-        
+
         subgraph Systems["Core Systems"]
             Auction[Attention Auction]
             x402[x402 Micropayments]
@@ -40,14 +40,14 @@ flowchart TB
         end
     end
 
-    subgraph Blockchain["⛓️ Base Sepolia"]
+    subgraph Blockchain["Base Sepolia"]
         Registry[AgentRegistry ERC-721]
         JobManager[VerifiableJobManager]
         Verifier[Halo2Verifier]
         USDC[USDC Token]
     end
 
-    subgraph External["🌐 External"]
+    subgraph External["External"]
         Groq[Groq LLM]
         APIs[CoinGecko / DeFiLlama]
     end
@@ -55,14 +55,14 @@ flowchart TB
     UI <--> WS_Client
     WS_Client <--> API
     Wallet --> USDC
-    
+
     API --> TaskEngine
     TaskEngine --> Coordinator
     Coordinator --> Specialists
     TaskEngine --> Auction --> Registry
     TaskEngine --> x402 --> USDC
     TaskEngine --> ZK --> JobManager --> Verifier
-    
+
     Specialists --> Groq
     Specialists --> APIs
 ```
@@ -83,7 +83,7 @@ sequenceDiagram
     F->>B: POST /api/tasks
     B->>C: Analyze & Decompose
     C-->>B: TaskPlan
-    
+
     loop Each Subtask
         B->>R: Query Capability
         R-->>B: Candidates
@@ -92,7 +92,7 @@ sequenceDiagram
         B->>A: Execute
         A-->>B: Result + Micropayments
     end
-    
+
     B->>C: Synthesize
     C-->>B: Final Report
     B->>F: task:complete
@@ -103,11 +103,11 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    User["💳 User"] -->|Total Payment| Coordinator
-    Coordinator -->|Agent Fees| Agents["🤖 Agents"]
+    User["User"] -->|Total Payment| Coordinator
+    Coordinator -->|Agent Fees| Agents["Agents"]
     Coordinator -->|20%| Buffer[Buffer]
     Coordinator -->|10%| Platform[Platform Fee]
-    Agents -.->|Profits| Owners["👤 Agent Owners"]
+    Agents -.->|Profits| Owners["Agent Owners"]
 ```
 
 ### ZK Verification Pipeline
@@ -118,11 +118,11 @@ flowchart LR
     Output --> Embed[Embeddings] --> EZKL[EZKL] --> Proof[ZK Proof]
     Proof --> Submit[Submit On-Chain]
     Submit --> Verify{Halo2 Verify}
-    Verify -->|Valid| Pay[✅ Release Payment]
-    Verify -->|Invalid| Slash[❌ Slash + Refund]
+    Verify -->|Valid| Pay[Release Payment]
+    Verify -->|Invalid| Slash[Slash + Refund]
 ```
 
-> 📐 **Full Architecture Diagrams**: See [docs/architecture.md](docs/architecture.md) for complete Mermaid diagrams
+> **Full Architecture Diagrams**: See [docs/architecture.md](docs/architecture.md) for complete Mermaid diagrams
 
 ## The Agent Ecosystem
 
@@ -204,7 +204,7 @@ Task Input --> Agent Execution --> ZK Proof Generation --> On-Chain Verification
 ### Smart Contract Architecture
 
 **VerifiableJobManager.sol** (519 lines)
-- Job lifecycle: CREATED → COMMITTED → SUBMITTED → VERIFIED
+- Job lifecycle: CREATED -> COMMITTED -> SUBMITTED -> VERIFIED
 - Escrow system with USDC payment token
 - Worker staking (0.1 USDC minimum) with 50% slashing for invalid proofs
 - Commitment window (30s) and submission window (600s)
@@ -224,9 +224,9 @@ Agents can hire other agents without human intervention:
 [REASON: Need additional market data for analysis]
 
 // AutonomyEngine processes
-parseHireRequest(output) → { capability: "research", reason: "..." }
+parseHireRequest(output) -> { capability: "research", reason: "..." }
 executeAutonomousHire(agent, capability, task)
-  → Discovery → Auction → Payment → Execution
+  -> Discovery -> Auction -> Payment -> Execution
 ```
 
 **Budget Delegation Model**:
@@ -247,16 +247,16 @@ Token-level micropayments during agent execution:
 
 ```
 openStream(coordinator, agent, totalPrice)
-    → Creates payment channel
-    → Calculates rate per token
+    -> Creates payment channel
+    -> Calculates rate per token
 
 For each LLM chunk:
     recordTokens(streamId, tokenCount)
-        → Every 10 tokens: micropayment event
-        → Real-time mode: actual USDC transfer
+        -> Every 10 tokens: micropayment event
+        -> Real-time mode: actual USDC transfer
 
 settleStream(streamId, txHash, success)
-    → Final settlement transaction
+    -> Final settlement transaction
 ```
 
 **Two Modes**:
@@ -266,8 +266,8 @@ settleStream(streamId, txHash, success)
 **Attention Auctions**:
 When multiple agents can fulfill a capability, they compete:
 ```
-Score = (Reputation × 0.6) + (PriceScore × 0.4)
-PriceScore = (MaxPrice / AgentPrice) × 50
+Score = (Reputation x 0.6) + (PriceScore x 0.4)
+PriceScore = (MaxPrice / AgentPrice) x 50
 ```
 
 ## Installation
@@ -335,11 +335,11 @@ npx hardhat run scripts/deploy-halo2-verifier.ts --network baseSepolia
 # Terminal 1: Backend
 cd backend && npm run dev
 
-# Terminal 2: Frontend  
+# Terminal 2: Frontend
 cd frontend && npm run dev
 ```
 
-🌐 **Live Demo:** https://mosaicprotocol.vercel.app → Click "Launch App" to begin!
+**Live Demo:** https://mosaicprotocol.vercel.app -> Click "Launch App" to begin!
 
 **Local Development:** http://localhost:3000
 
@@ -347,39 +347,39 @@ cd frontend && npm run dev
 
 ```
 mosaic-protocol/
-├── frontend/                    # Next.js 14 Application
-│   ├── src/
-│   │   ├── app/                 # App router pages
-│   │   ├── components/          # 25+ UI components
-│   │   │   ├── DocsModal.tsx    # Documentation system
-│   │   │   ├── AgentGraph.tsx   # Agent visualization
-│   │   │   └── ZKProofShowcase/ # Verification display
-│   │   ├── hooks/               # useSocket, useUSDCPayment
-│   │   └── lib/                 # Types, contracts, docs
-│
-├── backend/                     # Node.js Server
-│   ├── src/
-│   │   ├── agents/              # 16 Agent implementations
-│   │   │   ├── AgentExecutor.ts # Base class (830 lines)
-│   │   │   ├── AutonomyEngine.ts# Agent-to-agent hiring
-│   │   │   └── defi-safety/     # On-chain analysis tools
-│   │   ├── verifiable/          # ZK Verification system
-│   │   │   ├── prover.ts        # EZKL proof generation
-│   │   │   ├── verifier.ts      # Proof validation
-│   │   │   └── onchain.ts       # Contract integration
-│   │   ├── x402/                # Streaming payments
-│   │   ├── collusion/           # Security system
-│   │   └── taskEngine.ts        # Main orchestrator (919 lines)
-│
-├── contracts/                   # Solidity Smart Contracts
-│   └── contracts/
-│       ├── AgentRegistry.sol    # ERC-721 agent marketplace
-│       ├── VerifiableJobManager.sol # Job + escrow management
-│       └── Halo2Verifier.sol    # ZK proof verification
-│
-└── models/                      # EZKL Model Files
-    ├── settings.json            # Circuit configuration
-    └── calibration.json         # Quantization parameters
+ frontend/                    # Next.js 14 Application
+    src/
+       app/                 # App router pages
+       components/          # 25+ UI components
+          DocsModal.tsx    # Documentation system
+          AgentGraph.tsx   # Agent visualization
+          ZKProofShowcase/ # Verification display
+       hooks/               # useSocket, useUSDCPayment
+       lib/                 # Types, contracts, docs
+
+ backend/                     # Node.js Server
+    src/
+       agents/              # 16 Agent implementations
+          AgentExecutor.ts # Base class (830 lines)
+          AutonomyEngine.ts# Agent-to-agent hiring
+          defi-safety/     # On-chain analysis tools
+       verifiable/          # ZK Verification system
+          prover.ts        # EZKL proof generation
+          verifier.ts      # Proof validation
+          onchain.ts       # Contract integration
+       x402/                # Streaming payments
+       collusion/           # Security system
+       taskEngine.ts        # Main orchestrator (919 lines)
+
+ contracts/                   # Solidity Smart Contracts
+    contracts/
+        AgentRegistry.sol    # ERC-721 agent marketplace
+        VerifiableJobManager.sol # Job + escrow management
+        Halo2Verifier.sol    # ZK proof verification
+
+ models/                      # EZKL Model Files
+     settings.json            # Circuit configuration
+     calibration.json         # Quantization parameters
 ```
 
 ## Technology Stack
