@@ -268,15 +268,23 @@ export default function LandingPage() {
     }, 400);
   }, []);
 
-  // Go back to landing
+  // Go back to landing - reset all task state
   const handleBackToLanding = useCallback(() => {
     if (isRunning) return;
     setIsTransitioning(true);
     setTimeout(() => {
       setView('landing');
       setIsTransitioning(false);
+      // Reset all task-related state
       setTask('');
       setStatusMessage('');
+      setActiveAgents([]);
+      setActivities([]);
+      setResult(null);
+      setTotalCost(null);
+      setShowResults(false);
+      setZkProof({ status: 'idle' });
+      setPendingTask('');
     }, 400);
   }, [isRunning]);
 
@@ -306,12 +314,15 @@ export default function LandingPage() {
   const handleRunDemo = useCallback(async () => {
     if (isRunning) return;
     
+    // Reset all state for fresh demo
     setIsRunning(true);
     setStatusMessage('Starting demo...');
-    setTask('Research and analyze the top 3 Solana DeFi protocols');
+    setActiveAgents(['coordinator']); // Start with coordinator active
+    setActivities([]); // Clear previous activities
     setZkProof({ status: 'idle' }); // Reset ZK proof state
     setShowResults(false);
     setResult(null);
+    setTotalCost(null);
     
     try {
       await fetch(`${API_URL}/api/demo/start`, { method: 'POST' });
@@ -320,6 +331,7 @@ export default function LandingPage() {
       console.error('Error starting demo:', error);
       setIsRunning(false);
       setStatusMessage('Failed to start demo');
+      setActiveAgents([]);
     }
   }, [isRunning]);
 
