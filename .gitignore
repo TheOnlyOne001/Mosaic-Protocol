@@ -39,6 +39,7 @@ coverage/
 # Documentation (generated)
 *.md
 !README.md
+!docs/*.md
 
 # Test files
 **/test-*.ts
