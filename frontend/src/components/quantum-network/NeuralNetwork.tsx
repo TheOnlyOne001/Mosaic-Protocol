@@ -1,25 +1,35 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
-import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass";
-import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass";
+// @ts-ignore
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+// @ts-ignore
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+// @ts-ignore
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+// @ts-ignore
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+// @ts-ignore
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 
-// Agent definitions for tooltip display
+// Agent definitions for tooltip display - matches on-chain AgentRegistry
 const AGENTS = [
+  // Core agents
   { id: 'coordinator', name: 'Coordinator', capability: 'orchestration', connects: ['research', 'analyst', 'market', 'writer'] },
-  { id: 'research', name: 'Research Agent', capability: 'research', connects: ['coordinator', 'analyst'] },
-  { id: 'analyst', name: 'Analyst Agent', capability: 'analysis', connects: ['coordinator', 'research', 'writer'] },
-  { id: 'market', name: 'Market Data', capability: 'market_data', connects: ['coordinator', 'defi-safety'] },
-  { id: 'writer', name: 'Writer Agent', capability: 'writing', connects: ['coordinator', 'analyst'] },
-  { id: 'defi-safety', name: 'DeFi Safety', capability: 'token_safety', connects: ['market', 'coordinator'] },
-  { id: 'executor', name: 'Executor Agent', capability: 'execution', connects: ['coordinator', 'smart-router'] },
-  { id: 'smart-router', name: 'Smart Router', capability: 'routing', connects: ['executor', 'bridge'] },
-  { id: 'bridge', name: 'Bridge Agent', capability: 'bridging', connects: ['smart-router'] },
-  { id: 'portfolio', name: 'Portfolio Manager', capability: 'portfolio', connects: ['coordinator', 'yield-opt'] },
-  { id: 'yield-opt', name: 'Yield Optimizer', capability: 'yield', connects: ['portfolio', 'liquidation'] },
-  { id: 'liquidation', name: 'Liquidation Protection', capability: 'protection', connects: ['yield-opt'] },
+  { id: 'research', name: 'Perplexity-Research', capability: 'research', connects: ['coordinator', 'analyst'] },
+  { id: 'analyst', name: 'Deep-Analyst', capability: 'analysis', connects: ['coordinator', 'research', 'writer'] },
+  { id: 'market', name: 'CoinGecko-Markets', capability: 'market_data', connects: ['coordinator', 'defi-safety'] },
+  { id: 'writer', name: 'Report-Writer', capability: 'writing', connects: ['coordinator', 'analyst'] },
+  // Specialized DeFi agents
+  { id: 'defi-safety', name: 'DeFi-Safety', capability: 'token_safety_analysis', connects: ['market', 'coordinator'] },
+  { id: 'onchain-analyst', name: 'OnChain-Analyst', capability: 'onchain_analysis', connects: ['coordinator', 'defi-safety'] },
+  { id: 'smart-router', name: 'Smart-Router', capability: 'dex_aggregation', connects: ['executor', 'bridge'] },
+  { id: 'portfolio', name: 'Portfolio-Manager', capability: 'portfolio_analysis', connects: ['coordinator', 'yield-opt'] },
+  { id: 'yield-opt', name: 'Yield-Optimizer', capability: 'yield_optimization', connects: ['portfolio', 'liquidation'] },
+  { id: 'bridge', name: 'Bridge-Agent', capability: 'cross_chain_bridging', connects: ['smart-router', 'coordinator'] },
+  { id: 'liquidation', name: 'Liquidation-Protection', capability: 'liquidation_protection', connects: ['yield-opt', 'alert'] },
+  { id: 'governance', name: 'Governance-Agent', capability: 'dao_governance', connects: ['coordinator'] },
+  { id: 'alert', name: 'Alert-Agent', capability: 'on_chain_monitoring', connects: ['liquidation', 'coordinator'] },
+  { id: 'executor', name: 'Executor-Agent', capability: 'autonomous_execution', connects: ['coordinator', 'smart-router'] },
 ];
 
 type PulseUniforms = {

@@ -52,21 +52,26 @@ function useTypewriter(texts: string[], typingSpeed = 80, deletingSpeed = 40, pa
 type ViewMode = 'landing' | 'task';
 
 // Map capabilities to agent IDs for neural network highlighting
+// Must match EXACT on-chain capability names from AgentRegistry
 const CAPABILITY_TO_AGENT: Record<string, string> = {
+  // Core agents
   'orchestration': 'coordinator',
   'research': 'research',
   'analysis': 'analyst',
   'market_data': 'market',
   'writing': 'writer',
-  'token_safety_analysis': 'defi-safety',
-  'token_safety': 'defi-safety',
-  'execution': 'executor',
-  'routing': 'smart-router',
-  'bridging': 'bridge',
-  'portfolio': 'portfolio',
-  'yield': 'yield-opt',
-  'protection': 'liquidation',
   'summarization': 'writer',
+  // Specialized DeFi agents - exact on-chain capability names
+  'token_safety_analysis': 'defi-safety',
+  'onchain_analysis': 'onchain-analyst',
+  'dex_aggregation': 'smart-router',
+  'portfolio_analysis': 'portfolio',
+  'yield_optimization': 'yield-opt',
+  'cross_chain_bridging': 'bridge',
+  'liquidation_protection': 'liquidation',
+  'dao_governance': 'governance',
+  'on_chain_monitoring': 'alert',
+  'autonomous_execution': 'executor',
 };
 
 export default function LandingPage() {
