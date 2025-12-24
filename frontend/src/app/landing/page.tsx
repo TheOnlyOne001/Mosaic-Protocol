@@ -2,14 +2,20 @@
 
 import dynamic from 'next/dynamic';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowRight, Zap, Shield, Bot, Sparkles, ChevronRight, Play, Send, Loader2, ArrowLeft, Wifi, WifiOff, Search, Award, DollarSign, X, BookOpen } from 'lucide-react';
+import { ArrowRight, Zap, Shield, Bot, Sparkles, ChevronRight, Play, Send, Loader2, ArrowLeft, Wifi, WifiOff, Search, Award, DollarSign, X, BookOpen, Settings } from 'lucide-react';
 import { useSocket } from '@/hooks/useSocket';
 import { ConnectWalletButton } from '@/components/ConnectWalletButton';
 import { QuoteModal } from '@/components/QuoteModal';
 import { DocsModal } from '@/components/DocsModal';
+import { SettingsModal, getBackendUrl } from '@/components/SettingsModal';
 import { DecisionLog } from '@/lib/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const getApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    return getBackendUrl();
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+};
 
 const NeuralNetwork = dynamic(
   () => import('@/components/quantum-network/NeuralNetwork'),
@@ -107,6 +113,9 @@ export default function LandingPage() {
   
   // Docs modal state
   const [showDocsModal, setShowDocsModal] = useState(false);
+  
+  // Settings modal state
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   
   const { isConnected, subscribe } = useSocket();
   
@@ -325,7 +334,7 @@ export default function LandingPage() {
     setTotalCost(null);
     
     try {
-      await fetch(`${API_URL}/api/demo/start`, { method: 'POST' });
+      await fetch(`${getApiUrl()}/api/demo/start`, { method: 'POST' });
       setStatusMessage('Demo running...');
     } catch (error) {
       console.error('Error starting demo:', error);
@@ -381,6 +390,14 @@ export default function LandingPage() {
             
             {/* Right side header items */}
             <div className="flex items-center gap-3">
+              {/* Settings Button */}
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/5 transition-all"
+              >
+                <Settings className="w-4 h-4" />
+                <span className="text-sm font-medium">Settings</span>
+              </button>
               {/* Docs Button */}
               <button
                 onClick={() => setShowDocsModal(true)}
@@ -1079,6 +1096,12 @@ export default function LandingPage() {
       <DocsModal
         isOpen={showDocsModal}
         onClose={() => setShowDocsModal(false)}
+      />
+      
+      {/* Settings Modal for API Keys */}
+      <SettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
       />
     </div>
   );

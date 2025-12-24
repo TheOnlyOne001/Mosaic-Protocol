@@ -5,7 +5,7 @@ import {
     selectPerplexityModel,
     PerplexityModel 
 } from '../tools/perplexity.js';
-import { config } from '../config.js';
+import { config, getEffectivePerplexityApiKey } from '../config.js';
 import { broadcast } from '../index.js';
 import * as pipelineLog from '../pipelineLogger.js';
 
@@ -75,7 +75,7 @@ export class ResearchAgent extends AgentExecutor {
         console.log(`   📊 Model selected: ${model}`);
         pipelineLog.logEvent('TOOL', 'Perplexity', 'Starting Web Search', { query: topic.slice(0, 100), model }, true);
 
-        if (config.perplexityApiKey) {
+        if (getEffectivePerplexityApiKey()) {
             try {
                 broadcast({
                     type: 'execution:start',

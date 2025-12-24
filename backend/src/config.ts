@@ -5,6 +5,29 @@ import { resolve } from 'path';
 dotenv.config({ path: resolve(process.cwd(), '../.env') });
 dotenv.config({ path: resolve(process.cwd(), '.env') });
 
+// User-provided API keys storage (set by middleware in index.ts)
+let userProvidedKeys: {
+    groqApiKey?: string;
+    anthropicApiKey?: string;
+    perplexityApiKey?: string;
+} = {};
+
+export function setUserAPIKeys(keys: typeof userProvidedKeys) {
+    userProvidedKeys = keys;
+}
+
+export function getEffectiveGroqApiKey(): string {
+    return userProvidedKeys.groqApiKey || process.env.GROQ_API_KEY || '';
+}
+
+export function getEffectiveAnthropicApiKey(): string {
+    return userProvidedKeys.anthropicApiKey || process.env.ANTHROPIC_API_KEY || '';
+}
+
+export function getEffectivePerplexityApiKey(): string {
+    return userProvidedKeys.perplexityApiKey || process.env.PERPLEXITY_API_KEY || '';
+}
+
 export const config = {
     // Agent private keys
     coordinatorPrivateKey: process.env.COORDINATOR_PRIVATE_KEY || '',

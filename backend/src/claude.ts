@@ -1,17 +1,22 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { config } from './config.js';
+import { config, getEffectiveAnthropicApiKey } from './config.js';
 
 let client: Anthropic | null = null;
+let lastApiKey: string = '';
 
 function getClient(): Anthropic | null {
-    if (!config.anthropicApiKey || config.anthropicApiKey === 'sk-ant-...') {
+    const apiKey = getEffectiveAnthropicApiKey();
+    
+    if (!apiKey || apiKey === 'sk-ant-...') {
         return null;
     }
 
-    if (!client) {
+    // Recreate client if API key changed (user provided new key)
+    if (!client || lastApiKey !== apiKey) {
         client = new Anthropic({
-            apiKey: config.anthropicApiKey,
+            apiKey: apiKey,
         });
+        lastApiKey = apiKey;
     }
 
     return client;

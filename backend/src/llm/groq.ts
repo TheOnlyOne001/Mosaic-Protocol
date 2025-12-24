@@ -4,7 +4,7 @@
  * Uses Llama 3.1 70B and other open-source models
  */
 
-import { config } from '../config.js';
+import { config, getEffectiveGroqApiKey } from '../config.js';
 import * as pipelineLog from '../pipelineLogger.js';
 
 export interface GroqMessage {
@@ -66,8 +66,9 @@ export async function callGroq(
         stream = false
     } = options;
 
-    if (!config.groqApiKey) {
-        throw new Error('Groq API key not configured');
+    const apiKey = getEffectiveGroqApiKey();
+    if (!apiKey) {
+        throw new Error('Groq API key not configured. Please add your API key in Settings.');
     }
 
     console.log(`🚀 Groq: Calling ${model} (${messages.length} messages)`);
@@ -80,7 +81,7 @@ export async function callGroq(
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${config.groqApiKey}`,
+                'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -133,8 +134,9 @@ export async function* streamGroq(
         maxTokens = 4096,
     } = options;
 
-    if (!config.groqApiKey) {
-        throw new Error('Groq API key not configured');
+    const apiKey = getEffectiveGroqApiKey();
+    if (!apiKey) {
+        throw new Error('Groq API key not configured. Please add your API key in Settings.');
     }
 
     console.log(`🚀 Groq: Streaming ${model}`);
@@ -142,7 +144,7 @@ export async function* streamGroq(
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${config.groqApiKey}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({

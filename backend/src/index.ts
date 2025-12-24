@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
-import { config, validateConfig } from './config.js';
+import { config, validateConfig, setUserAPIKeys } from './config.js';
 import { executeTask } from './taskEngine.js';
 import { initRegistry, getAllAgents, discoverAgents } from './discovery.js';
 import { getAllDecisions, clearDecisionLog } from './decisions.js';
@@ -36,6 +36,32 @@ const wss = new WebSocketServer({ server });
 // Middleware
 app.use(cors({ origin: '*' }));
 app.use(express.json());
+
+// Store user-provided API keys per request
+export interface UserAPIKeys {
+    groqApiKey?: string;
+    anthropicApiKey?: string;
+    perplexityApiKey?: string;
+}
+
+// Global storage for current request's API keys (simple approach for single-user)
+let currentUserKeys: UserAPIKeys = {};
+
+export function getCurrentUserKeys(): UserAPIKeys {
+    return currentUserKeys;
+}
+
+// Middleware to extract API keys from headers
+app.use((req, res, next) => {
+    currentUserKeys = {
+        groqApiKey: req.headers['x-groq-api-key'] as string || undefined,
+        anthropicApiKey: req.headers['x-anthropic-api-key'] as string || undefined,
+        perplexityApiKey: req.headers['x-perplexity-api-key'] as string || undefined,
+    };
+    // Update config with user-provided keys
+    setUserAPIKeys(currentUserKeys);
+    next();
+});
 
 // Store connected clients
 const clients = new Set<WebSocket>();

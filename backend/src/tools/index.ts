@@ -5,7 +5,7 @@
 import { getProtocolMarketData, formatMarketData, extractMetrics, CoinGeckoResult } from './coingecko';
 import { getProtocolsTVL, formatTVLData, extractTVLMetrics, DeFiLlamaResult } from './defillama';
 import { searchPerplexity, formatPerplexityResult, PerplexityResult } from './perplexity';
-import { config } from '../config.js';
+import { config, getEffectivePerplexityApiKey } from '../config.js';
 
 export interface ToolResult {
     success: boolean;
@@ -60,18 +60,19 @@ async function defillamaTool(input: string | string[]): Promise<ToolResult> {
 async function perplexityTool(input: string | string[]): Promise<ToolResult> {
     const query = Array.isArray(input) ? input.join(' ') : input;
     
-    if (!config.perplexityApiKey) {
+    const apiKey = getEffectivePerplexityApiKey();
+    if (!apiKey) {
         return {
             success: false,
             tool: 'perplexity',
             rawData: null,
-            formatted: 'Perplexity API key not configured',
+            formatted: 'Perplexity API key not configured. Please add your API key in Settings.',
             metrics: {},
             timestamp: Date.now()
         };
     }
     
-    const result: PerplexityResult = await searchPerplexity(query, config.perplexityApiKey);
+    const result: PerplexityResult = await searchPerplexity(query, apiKey);
     
     return {
         success: result.success,

@@ -3,7 +3,26 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { WSEvent } from '@/lib/types';
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+function getWsUrl(): string {
+    if (typeof window === 'undefined') {
+        return process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+    }
+    
+    try {
+        const stored = localStorage.getItem('mosaic_api_keys');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed.backendUrl) {
+                // Convert http(s) to ws(s)
+                return parsed.backendUrl.replace(/^http/, 'ws');
+            }
+        }
+    } catch (e) {
+        console.error('Failed to get stored backend URL:', e);
+    }
+    
+    return process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+}
 
 export function useSocket() {
     const wsRef = useRef<WebSocket | null>(null);
@@ -27,7 +46,8 @@ export function useSocket() {
     useEffect(() => {
         const connect = () => {
             try {
-                const ws = new WebSocket(WS_URL);
+                const wsUrl = getWsUrl();
+                const ws = new WebSocket(wsUrl);
 
                 ws.onopen = () => {
                     console.log('🔌 WebSocket connected');

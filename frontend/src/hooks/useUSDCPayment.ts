@@ -4,9 +4,26 @@ import { useState, useCallback } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
 import { ERC20_ABI, USDC_DECIMALS, getUSDCAddress } from '@/lib/contracts';
+import { getStoredAPIKeys, getBackendUrl } from '@/components/SettingsModal';
 
-// API base URL
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// Get API base URL from settings
+function getApiBase(): string {
+  return getBackendUrl();
+}
+
+// Get headers with API keys
+function getApiHeaders(): Record<string, string> {
+  const keys = getStoredAPIKeys();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (keys.groqApiKey) headers['X-Groq-Api-Key'] = keys.groqApiKey;
+  if (keys.anthropicApiKey) headers['X-Anthropic-Api-Key'] = keys.anthropicApiKey;
+  if (keys.perplexityApiKey) headers['X-Perplexity-Api-Key'] = keys.perplexityApiKey;
+  
+  return headers;
+}
 
 /**
  * Quote response from backend
@@ -131,9 +148,9 @@ export function useUSDCPayment() {
     setQuote(null);
 
     try {
-      const response = await fetch(`${API_BASE}/api/quote`, {
+      const response = await fetch(`${getApiBase()}/api/quote`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify({ task }),
       });
 
@@ -232,9 +249,9 @@ export function useUSDCPayment() {
       // Verify payment and execute task
       setStatus('verifying');
       
-      const executeResponse = await fetch(`${API_BASE}/api/execute`, {
+      const executeResponse = await fetch(`${getApiBase()}/api/execute`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           quoteId: quote.quoteId,
           txHash: hash,

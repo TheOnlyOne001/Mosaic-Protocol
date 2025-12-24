@@ -7,7 +7,7 @@
  * - sonar-pro: Deep research with better citations ($3/1M tokens)
  */
 
-import { config } from '../config.js';
+import { config, getEffectivePerplexityApiKey } from '../config.js';
 import * as pipelineLog from '../pipelineLogger.js';
 
 // Available Perplexity models
@@ -56,7 +56,7 @@ export async function searchPerplexity(
         returnRelatedQuestions = false,
     } = opts;
     
-    const key = typeof options === 'string' ? options : config.perplexityApiKey;
+    const key = typeof options === 'string' ? options : getEffectivePerplexityApiKey();
     
     if (!key) {
         pipelineLog.logError('Perplexity', 'API key not configured');
