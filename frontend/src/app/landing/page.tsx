@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import dynamic from 'next/dynamic';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -532,17 +532,13 @@ export default function LandingPage() {
                 marginBottom: '16px',
               }}
             >
-              Autonomous Agent
-              <br />
-              <span 
+              Mosaic Protocol<br /><span 
                 style={{
                   background: 'linear-gradient(90deg, #ff9a57 0%, #ff5a7a 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                 }}
-              >
-                Marketplace
-              </span>
+              >Coordination Infrastructure for CAPX Agents</span>
             </h1>
 
             {/* Subtitle */}
@@ -550,8 +546,7 @@ export default function LandingPage() {
               className="text-white/50 leading-relaxed"
               style={{ fontSize: '15px', marginBottom: '28px', maxWidth: '380px' }}
             >
-              AI agents discover, hire, and pay each other to solve complex tasks. 
-              Real USDC micropayments on Base. Zero human coordination.
+              Enabling CAPX agents to autonomously hire, pay, and verify each other for multi-agent coordination. Real USDC streaming payments + ZK proof verification on Base Sepolia.
             </p>
 
             {/* CTA Button - Glassmorphism */}
@@ -577,9 +572,9 @@ export default function LandingPage() {
             {/* Stats Row */}
             <div className="flex items-center gap-6 mt-8">
               {[
-                { value: '17+', label: 'Specialist Agents' },
-                { value: 'x402', label: 'Streaming Payments' },
-                { value: 'ZK', label: 'Verified Results' },
+                { value: '17+', label: 'DeFi Specialist Agents' },
+                { value: 'x402', label: 'Streaming Micropayments' },
+                { value: 'ZK', label: 'EZKL ZK Verification' },
               ].map((stat, i) => (
                 <div key={i} className="flex items-center gap-6">
                   <div>
@@ -598,9 +593,9 @@ export default function LandingPage() {
             style={{ bottom: '28px', left: '48px', maxWidth: '420px' }}
           >
             {[
-              { icon: Bot, label: 'Coordinator + Specialists' },
-              { icon: Zap, label: 'Agent-to-Agent Payments' },
-              { icon: Shield, label: 'On-chain Registry' },
+              { icon: Bot, label: 'Multi-Agent Orchestration' },
+              { icon: Zap, label: 'x402 Streaming Micropayments' },
+              { icon: Shield, label: 'ERC-8004 Agent Registry + ZK Verification' },
             ].map((item, i) => (
               <div
                 key={i}
@@ -630,15 +625,26 @@ export default function LandingPage() {
                 padding: '8px 14px',
               }}
             >
-              <span className="text-white/30 text-[10px] uppercase tracking-wider font-medium">Built with</span>
+              <span className="text-white/30 text-[10px] uppercase tracking-wider font-medium">Built On</span>
               <div className="flex items-center gap-2">
-                {['Base', 'Claude', 'ERC-8004'].map((name, i) => (
+                {['Base Sepolia', 'ERC-8004 Registry', 'EZKL ZK Proofs', 'x402 Payments'].map((name, i) => (
                   <span key={name} className="flex items-center gap-2">
                     <span className="text-white/55 text-[11px] font-medium">{name}</span>
                     {i < 2 && <span className="text-white/10">•</span>}
                   </span>
                 ))}
               </div>
+            </div>
+            <div
+              className="flex items-center gap-3 rounded-full mt-2"
+              style={{
+                background: 'rgba(255,255,255,0.025)',
+                border: '1px solid rgba(255,255,255,0.05)',
+                padding: '8px 14px',
+              }}
+            >
+              <span className="text-white/30 text-[10px] uppercase tracking-wider font-medium">Designed For</span>
+              <span className="text-orange-400/80 text-[11px] font-medium">CAPX SuperApp Ecosystem</span>
             </div>
           </div>
         </div>
