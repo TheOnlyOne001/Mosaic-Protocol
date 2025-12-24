@@ -9,10 +9,10 @@ build/
 .next/
 out/
 
-### Environment
-##.env
-#.env.local
-#.env.*.local
+# Environment (contains secrets)
+.env
+.env.local
+.env.*.local
 
 # IDE
 .vscode/
@@ -52,3 +52,17 @@ coverage/
 *.zip
 *.log
 private\ keys.txt
+
+# Python virtual environments
+**/ezkl_env/
+**/__pycache__/
+*.pyc
+
+# Large model files
+*.srs
+*.onnx
+*.key
+models/model.compiled
+models/*.json
+!models/settings.json
+!models/calibration.json

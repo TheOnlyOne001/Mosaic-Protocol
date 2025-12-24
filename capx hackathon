@@ -1,0 +1,98 @@
+# Capx App Layer FTW Hackathon Project Guidelines
+
+### *A 7-Day Global Hunt for the next AI App Business*
+
+---
+
+To ensure clarity and consistency in submissions, all projects must follow these guidelines.
+
+### **1. General Guidelines:**
+
+- All project submissions must integrate AI-powered autonomous agents as a core component
+- The project should have strictly been built during the hackathon window (no pre-built work)
+- Projects that already launched a token or have raised capital are not eligible to participate.
+- Projects must be built “from scratch” (borrowing libraries/SDKs is allowed, but the main logic must be yours)
+
+---
+
+### 2. Choose A Track
+
+All the projects must be aligned with atleast 1 or more of the given tracks:
+
+- **x402**
+    
+    Apps or agents that deeply integrate x402 micropayments, enabling programmable attention, micro-actions, or influence flows. x402 lets agents send/receive **tiny on-chain microtransactions** for every action, click, message, or attention event.
+    
+- **ERC-8004**
+    
+    Apps using ERC-8004 for persistent agent memory, portability, or interoperable state containers. ERC-8004 lets agents store: memory, reputation, preferences, skills and personality on-chain in a standardized container.
+    
+- **Verifiable AI**
+    
+    Agents whose outputs are verifiable using zkML, attestations, proofs of inference, or cryptographic guarantees. Trustless AI verifies that the agent ran the model it claims, used the correct inputs while not being manipulated.
+    
+- **Privacy in AI**
+    
+    Privacy-preserving agents using encrypted inference. Privacy-preserving AI helps us build trust in AI execution and its execution while keeping sensitive data private.
+    
+- **DeFAI**
+    
+    Trading agents, risk dashboards, on-chain automation, portfolio intelligence, or economic agents. You will be utilizing AI to automate or help traders make smart decisions with adequate quality data.
+    
+    ---
+    
+
+### 3. **Technical & On-chain Requirements:**
+
+- The GitHub repository must be set to public access to allow judges to evaluate the code quality.
+- All AI agents must have a functional level of autonomy : whether decision-making, automation, or self-improving models.
+
+**Resources:**
+
+- Agent building Guide - [**myaihub.org**](http://myaihub.org/)
+- Developer Guide - [**guide.capx.ai**](http://guide.capx.ai/)
+
+---
+
+### **4. Judging Criteria**
+
+- **Technical & AI Excellence (45%)**
+    - Does the project leverage original, novel or proprietary AI/technology (i.e., is there a moat for this technology, or is this just a "copy-and-paste" idea)?
+    - How technically ambitious, sophisticated or innovative is the underlying solution (i.e., is this a technology feat)?
+- **Individual / Team Experience (20%)**
+    - Does the individual/team have relevant experience/background that strengthens the project?
+    - Does the individual/team demonstrate the capability and knowledge to bring this project to life post-hackathon?
+- **Relevance to Capx (20%)**
+    - Does the solution have high potential to enhance and create value to Capx?
+    - Does the solution have high potential to attract significant user base to Capx?
+- **Presentation & Product Demo (15%)**
+    - How clearly is the project and its functionality communicated in the submission materials and presentation?
+    - What is the level of maturity and completion of the product demo presented (for instance is it a completely functional product, or just a wireframe)?
+
+---
+
+### **5. Submission Format**
+
+Each submission must include:
+
+1. **Project Name & Description** – A concise explanation of what the project does.
+2. **Live Demo (if applicable)** –  A working prototype of the App.
+3. **GitHub Repository** – Source code with proper documentation.
+4. **Pitch Deck (5 slides is ideal)** – Covering the problem, solution, AI integration, business model, and market potential.
+5. **Video Demo (Optional but Recommended)** – 2-5 min walkthrough explaining functionality.
+
+---
+
+### **6. Prize Pool Distribution**
+
+The **grand winner** gets to **launch their app on Capx** while the **other 4 top teams** is rewarded from a prize pool of **100,000 $CAPX tokens**. The breakdown is as stated below:
+
+| Rank | Prize |
+| --- | --- |
+| **Grand Winner** | **App Listing on Capx Protocol** |
+| **2nd Place** | **40,000 $CAPX** |
+| **3rd Place** | **30,000 $CAPX** |
+| **4th Place** | **20,000 $CAPX** |
+| **5th Place** | **10,000 $CAPX** |
+
+---

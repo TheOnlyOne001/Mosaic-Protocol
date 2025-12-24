@@ -1,0 +1,474 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   MOSAIC PROTOCOL - CINEMATIC DESIGN SYSTEM
+   ============================================ */
+
+:root {
+  /* Core Colors - Deep Cyberpunk */
+  --bg-primary: #050508;
+  --bg-secondary: #0a0a12;
+  --bg-card: #0d0d18;
+  --bg-elevated: #12121f;
+  
+  /* Borders & Lines */
+  --border-dim: #1a1a2e;
+  --border-default: #252540;
+  --border-bright: #3a3a5c;
+  
+  /* Brand Colors */
+  --purple-primary: #a855f7;
+  --purple-dim: #7c3aed;
+  --purple-bright: #c084fc;
+  --purple-glow: rgba(168, 85, 247, 0.4);
+  
+  --cyan-primary: #06b6d4;
+  --cyan-dim: #0891b2;
+  --cyan-bright: #22d3ee;
+  --cyan-glow: rgba(6, 182, 212, 0.4);
+  
+  /* Money & Success */
+  --gold-primary: #fbbf24;
+  --gold-bright: #fcd34d;
+  --gold-glow: rgba(251, 191, 36, 0.5);
+  
+  --green-primary: #22c55e;
+  --green-glow: rgba(34, 197, 94, 0.4);
+  
+  /* Danger / Alert */
+  --red-primary: #ef4444;
+  --red-bright: #f87171;
+  --red-glow: rgba(239, 68, 68, 0.5);
+  
+  /* Text */
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --text-tertiary: rgba(255, 255, 255, 0.4);
+  --text-muted: rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Noise texture overlay for depth */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  z-index: 9999;
+}
+
+/* ============================================
+   TYPOGRAPHY
+   ============================================ */
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ============================================
+   SCROLLBAR
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-bright);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--purple-dim);
+}
+
+/* ============================================
+   GLASS MORPHISM
+   ============================================ */
+
+.glass {
+  background: rgba(13, 13, 24, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-dim);
+}
+
+.glass-strong {
+  background: rgba(13, 13, 24, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-default);
+}
+
+/* ============================================
+   GLOW EFFECTS
+   ============================================ */
+
+.glow-purple {
+  box-shadow: 0 0 20px var(--purple-glow), 0 0 40px rgba(168, 85, 247, 0.2);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 20px var(--cyan-glow), 0 0 40px rgba(6, 182, 212, 0.2);
+}
+
+.glow-gold {
+  box-shadow: 0 0 20px var(--gold-glow), 0 0 40px rgba(251, 191, 36, 0.2);
+}
+
+.glow-green {
+  box-shadow: 0 0 20px var(--green-glow);
+}
+
+.glow-red {
+  box-shadow: 0 0 20px var(--red-glow), 0 0 40px rgba(239, 68, 68, 0.2);
+}
+
+/* Text glow */
+.text-glow-purple {
+  text-shadow: 0 0 20px var(--purple-glow), 0 0 40px var(--purple-glow);
+}
+
+.text-glow-gold {
+  text-shadow: 0 0 20px var(--gold-glow), 0 0 40px var(--gold-glow);
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.8;
+    filter: brightness(1.2);
+  }
+}
+
+@keyframes breathing {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
+@keyframes rotate-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dash-flow {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+  20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+@keyframes screen-flash {
+  0% { opacity: 0; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0; }
+}
+
+@keyframes border-pulse {
+  0%, 100% {
+    box-shadow: inset 0 0 30px rgba(239, 68, 68, 0);
+  }
+  50% {
+    box-shadow: inset 0 0 60px rgba(239, 68, 68, 0.3);
+  }
+}
+
+.animate-breathing {
+  animation: breathing 3s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* ============================================
+   BUTTON STYLES
+   ============================================ */
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--purple-primary), var(--purple-dim));
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(168, 85, 247, 0.3);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-demo {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  font-weight: 700;
+  padding: 1rem 2rem;
+  border-radius: 1rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  font-size: 1.1rem;
+}
+
+.btn-demo::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b, #d97706, #f59e0b);
+  border-radius: inherit;
+  z-index: -1;
+  animation: rotate-slow 3s linear infinite;
+  background-size: 200% 200%;
+}
+
+.btn-demo:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 40px rgba(251, 191, 36, 0.4);
+}
+
+.btn-demo:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ============================================
+   CARD STYLES
+   ============================================ */
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-dim);
+  border-radius: 1rem;
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  border-color: var(--border-default);
+}
+
+.card-elevated {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 1rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* ============================================
+   AUTONOMOUS PAYMENT BANNER
+   ============================================ */
+
+.autonomous-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(251, 191, 36, 0.95));
+  padding: 1.5rem 2rem;
+  text-align: center;
+  transform: translateY(-100%);
+  box-shadow: 0 4px 30px rgba(239, 68, 68, 0.5);
+}
+
+.autonomous-banner h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 0.5rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.autonomous-banner p {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+}
+
+/* Screen overlay for dramatic effect */
+.screen-dim {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 999;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.screen-flash-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(ellipse at center, transparent 0%, rgba(239, 68, 68, 0.3) 100%);
+  z-index: 998;
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* ============================================
+   AGENT STATUS INDICATORS
+   ============================================ */
+
+.status-idle {
+  opacity: 0.4;
+}
+
+.status-working {
+  animation: pulse-glow 1s ease-in-out infinite;
+}
+
+.status-complete {
+  opacity: 1;
+}
+
+/* ============================================
+   TRANSACTION CARD
+   ============================================ */
+
+.tx-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-dim);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  transition: all 0.3s ease;
+}
+
+.tx-card:hover {
+  border-color: var(--purple-dim);
+  transform: translateX(4px);
+}
+
+.tx-card-new {
+  border-color: var(--green-primary);
+  box-shadow: 0 0 20px var(--green-glow);
+}
+
+/* ============================================
+   GRADIENT BACKGROUNDS
+   ============================================ */
+
+.bg-gradient-radial {
+  background: radial-gradient(ellipse at top, var(--bg-secondary) 0%, var(--bg-primary) 70%);
+}
+
+.bg-gradient-mesh {
+  background: 
+    radial-gradient(at 20% 20%, rgba(168, 85, 247, 0.1) 0%, transparent 50%),
+    radial-gradient(at 80% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 50%),
+    var(--bg-primary);
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+.text-gradient-purple {
+  background: linear-gradient(135deg, var(--purple-bright), var(--cyan-primary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-gold {
+  background: linear-gradient(135deg, var(--gold-primary), var(--gold-bright));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.border-gradient {
+  border: 2px solid transparent;
+  background: linear-gradient(var(--bg-card), var(--bg-card)) padding-box,
+              linear-gradient(135deg, var(--purple-primary), var(--cyan-primary)) border-box;
+}
+
+/* Hide elements for GSAP reveals */
+.gsap-hidden {
+  visibility: hidden;
+}
