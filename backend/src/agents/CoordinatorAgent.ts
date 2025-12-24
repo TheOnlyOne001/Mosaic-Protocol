@@ -293,6 +293,7 @@ export class CoordinatorAgent extends AgentExecutor {
 
     /**
      * Synthesize results from multiple agents into final output
+     * Uses a dedicated synthesis prompt instead of the task planning prompt
      */
     async synthesize(
         originalTask: string,
@@ -300,31 +301,59 @@ export class CoordinatorAgent extends AgentExecutor {
     ): Promise<string> {
         console.log(`\n📝 Coordinator synthesizing results...`);
 
+        // Build a comprehensive synthesis prompt
+        const synthesisSystemPrompt = `You are a synthesis expert. Your job is to combine research and analysis from multiple AI agents into a single, coherent, professional response.
+
+## Your Guidelines:
+1. Create a well-structured, readable response that directly answers the user's original question
+2. Do NOT include internal execution details, agent names, or technical metadata
+3. Use clear markdown formatting with headers, bullet points, and sections
+4. Focus on actionable insights and key findings
+5. Be concise but comprehensive
+6. Write in a professional, helpful tone
+7. If data includes numbers or statistics, present them clearly
+8. Do NOT mention "agents", "synthesis", or internal processes - just deliver the final answer`;
+
         const synthesisPrompt = `
-# Original Task:
+# User's Original Request:
 ${originalTask}
 
-# Agent Results:
+# Research & Analysis Results:
 ${Array.from(agentResults.entries())
-    .map(([agent, result]) => `## ${agent}:\n${result}`)
-    .join('\n\n')}
+    .map(([capability, result]) => `### ${capability.replace(/_/g, ' ').toUpperCase()}:\n${result}`)
+    .join('\n\n---\n\n')}
 
 # Your Task:
-Synthesize these results into a coherent, well-structured final response for the user.
-Ensure the response directly addresses their original request.
-`;
+Create a polished, user-friendly response that synthesizes all the above research into a coherent answer. 
+Structure it with clear sections, use markdown formatting, and focus on delivering value to the user.
+Do NOT reference the internal agents or processes - just deliver the final comprehensive answer.`;
 
-        const context: TaskContext = {
-            originalTask,
-            previousResults: agentResults,
-            structuredResults: new Map(),
-            conversationHistory: [],
-            depth: 0,
-            maxDepth: 1,
-        };
-
-        const result = await this.execute(synthesisPrompt, context);
-        return result.output;
+        try {
+            // Use Groq directly with synthesis-specific system prompt
+            const { callGroq, formatMessagesForGroq } = await import('../llm/groq.js');
+            
+            const messages = formatMessagesForGroq(
+                synthesisSystemPrompt,
+                synthesisPrompt,
+                []
+            );
+            
+            const response = await callGroq(messages, { 
+                model: 'llama-3.3-70b-versatile',
+                temperature: 0.3 // Lower temperature for more focused synthesis
+            });
+            
+            const output = response.choices[0].message.content;
+            console.log(`   ✅ Synthesis complete (${response.usage.total_tokens} tokens)`);
+            
+            return output;
+        } catch (error) {
+            console.error('Synthesis failed:', error);
+            // Fallback: return concatenated results
+            return Array.from(agentResults.entries())
+                .map(([cap, result]) => `## ${cap}\n${result}`)
+                .join('\n\n');
+        }
     }
 }
 
