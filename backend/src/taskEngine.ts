@@ -264,7 +264,8 @@ export async function executeTask(userTask: string): Promise<TaskExecutionResult
                         subtask.task,
                         context,
                         coordinatorWallet.address,
-                        selectedAgent.price
+                        selectedAgent.price,
+                        coordinatorWallet  // Pass wallet for x402 streaming payments
                     );
                     
                     verificationsCompleted++;

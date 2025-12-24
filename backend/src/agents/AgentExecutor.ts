@@ -458,11 +458,24 @@ export abstract class AgentExecutor {
         task: string,
         context: TaskContext,
         payerAddress: string,
-        paymentAmount: bigint = this.price
+        paymentAmount: bigint = this.price,
+        payerWallet?: Wallet  // Optional: enables x402 streaming payments
     ): Promise<VerifiedAgentResult> {
         console.log(`\n🔐 ${this.name} executing with ZK VERIFICATION...`);
         console.log(`   Task: ${task.slice(0, 100)}...`);
         console.log(`   Payment: ${Number(paymentAmount) / 1_000_000} USDC`);
+
+        // Open x402 payment stream for real-time micropayments
+        const stream = openStream(
+            'Coordinator',
+            payerAddress,
+            this.name,
+            this.wallet.address,
+            this.owner,
+            paymentAmount,
+            10, // Batch size: micro-payment every 10 tokens
+            payerWallet
+        );
 
         // Broadcast verification start
         broadcast({
@@ -473,16 +486,59 @@ export abstract class AgentExecutor {
         });
 
         const startTime = Date.now();
+        let totalTokensUsed = 0;
 
         try {
-            // Define the executor function that will be called by the verifiable system
+            // Define the executor function with x402 streaming
             const executorFn = async (taskInput: string): Promise<string> => {
-                // This is the actual LLM execution
-                const result = await this.execute(taskInput, context);
-                if (!result.success) {
-                    throw new Error(result.error || 'Execution failed');
+                // Use streaming execution to enable micropayments
+                const fullPrompt = this.buildPrompt(taskInput, context);
+                let outputContent = '';
+                
+                if (this.useGroq) {
+                    const model = mapEndpointToGroqModel(this.endpoint);
+                    const messages = formatMessagesForGroq(
+                        this.config.systemPrompt,
+                        fullPrompt,
+                        context.conversationHistory
+                    );
+                    
+                    // Stream tokens and record micropayments
+                    for await (const chunk of streamGroq(messages, { model })) {
+                        outputContent += chunk;
+                        const newTokens = Math.ceil(chunk.length / 4);
+                        recordTokens(stream.id, newTokens);
+                        totalTokensUsed += newTokens;
+                    }
+                } else if (this.client) {
+                    // Claude streaming with micropayments
+                    const model = this.getClaudeModel();
+                    const streamResponse = this.client.messages.stream({
+                        model: model,
+                        max_tokens: 4096,
+                        system: this.config.systemPrompt,
+                        messages: [
+                            ...context.conversationHistory,
+                            { role: 'user', content: fullPrompt }
+                        ],
+                    });
+
+                    for await (const event of streamResponse) {
+                        if (event.type === 'content_block_delta') {
+                            const delta = event.delta as { type: string; text?: string };
+                            if (delta.type === 'text_delta' && delta.text) {
+                                outputContent += delta.text;
+                                const newTokens = Math.ceil(delta.text.length / 4);
+                                recordTokens(stream.id, newTokens);
+                                totalTokensUsed += newTokens;
+                            }
+                        }
+                    }
+                } else {
+                    throw new Error('No LLM configured. Set GROQ_API_KEY or ANTHROPIC_API_KEY.');
                 }
-                return result.output;
+                
+                return outputContent;
             };
 
             // Execute with full verification flow
@@ -538,15 +594,21 @@ export abstract class AgentExecutor {
             if (verification.txHash) {
                 console.log(`   📜 TX: ${verification.txHash.slice(0, 20)}...`);
             }
+            console.log(`   💧 x402 Streaming: ${stream.microPaymentCount} micropayments, ${totalTokensUsed} tokens`);
             console.log(`   ⏱️  Total time: ${totalTimeMs}ms`);
+
+            // Settle the x402 payment stream
+            await settleStream(stream.id, verification.txHash || '', verificationResult.success);
 
             return {
                 success: verificationResult.success,
                 output: verificationResult.output,
-                tokensUsed: 0, // Will be populated by actual execution
+                tokensUsed: totalTokensUsed,
                 toolsUsed: [this.endpoint],
                 subAgentsHired: [],
                 verification,
+                microPayments: stream.microPaymentCount,
+                streamId: stream.id,
             };
 
         } catch (error) {
@@ -561,10 +623,13 @@ export abstract class AgentExecutor {
                 agentName: this.name,
             });
 
+            // Settle stream on error
+            await settleStream(stream.id, '', false);
+
             return {
                 success: false,
                 output: '',
-                tokensUsed: 0,
+                tokensUsed: totalTokensUsed,
                 toolsUsed: [],
                 subAgentsHired: [],
                 error: errorMessage,
@@ -573,6 +638,8 @@ export abstract class AgentExecutor {
                     jobId: '',
                     timeMs: Date.now() - startTime,
                 },
+                microPayments: stream.microPaymentCount,
+                streamId: stream.id,
             };
         }
     }
