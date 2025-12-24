@@ -107,6 +107,18 @@ export default function LandingPage() {
     classification?: string;
   }>({ status: 'idle' });
   
+  // x402 Streaming Payment state
+  const [streamingPayments, setStreamingPayments] = useState<{
+    active: boolean;
+    streamId?: string;
+    fromAgent?: string;
+    toAgent?: string;
+    microPaymentCount: number;
+    totalPaid: string;
+    ratePerToken?: string;
+    globalCount: number;
+  }>({ active: false, microPaymentCount: 0, totalPaid: '0', globalCount: 0 });
+  
   // Quote modal state
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [pendingTask, setPendingTask] = useState('');
@@ -263,6 +275,40 @@ export default function LandingPage() {
         case 'verification:error':
           setZkProof(prev => ({ ...prev, status: 'failed' }));
           break;
+        
+        // x402 Streaming Payment Events
+        case 'stream:open':
+          setStreamingPayments({
+            active: true,
+            streamId: event.streamId,
+            fromAgent: event.fromAgent,
+            toAgent: event.toAgent,
+            microPaymentCount: 0,
+            totalPaid: '0',
+            ratePerToken: event.ratePerToken,
+            globalCount: 0,
+          });
+          break;
+        case 'stream:micro':
+          setStreamingPayments(prev => ({
+            ...prev,
+            active: true,
+            fromAgent: event.fromAgent,
+            toAgent: event.toAgent,
+            microPaymentCount: event.microPaymentNumber || prev.microPaymentCount + 1,
+            totalPaid: event.cumulative || prev.totalPaid,
+            globalCount: event.globalCount || prev.globalCount + 1,
+          }));
+          break;
+        case 'stream:settle':
+          setStreamingPayments(prev => ({
+            ...prev,
+            active: false,
+            microPaymentCount: event.totalMicroPayments || prev.microPaymentCount,
+            totalPaid: event.totalPaid || prev.totalPaid,
+            globalCount: event.globalCount || prev.globalCount,
+          }));
+          break;
       }
     });
     return unsubscribe;
@@ -315,6 +361,7 @@ export default function LandingPage() {
     setActivities([]);
     setTask(''); // Ensure search bar is clear
     setZkProof({ status: 'idle' }); // Reset ZK proof state
+    setStreamingPayments({ active: false, microPaymentCount: 0, totalPaid: '0', globalCount: 0 }); // Reset x402 state
     setShowResults(false);
     setResult(null);
   }, []);
@@ -329,6 +376,7 @@ export default function LandingPage() {
     setActiveAgents(['coordinator']); // Start with coordinator active
     setActivities([]); // Clear previous activities
     setZkProof({ status: 'idle' }); // Reset ZK proof state
+    setStreamingPayments({ active: false, microPaymentCount: 0, totalPaid: '0', globalCount: 0 }); // Reset x402 state
     setShowResults(false);
     setResult(null);
     setTotalCost(null);
@@ -870,6 +918,105 @@ export default function LandingPage() {
                     </p>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* x402 Streaming Payments Panel - Left Side (during execution) */}
+          {isRunning && (streamingPayments.active || streamingPayments.globalCount > 0) && !showResults && (
+            <div 
+              className="absolute left-6 top-20 w-72 pointer-events-auto overflow-hidden"
+              style={{
+                background: 'linear-gradient(180deg, rgba(234,179,8,0.12) 0%, rgba(0,0,0,0.4) 100%)',
+                backdropFilter: 'blur(24px)',
+                WebkitBackdropFilter: 'blur(24px)',
+                border: '1px solid rgba(234,179,8,0.2)',
+                borderRadius: '20px',
+                boxShadow: '0 8px 32px rgba(234,179,8,0.2), inset 0 1px 0 rgba(255,255,255,0.05)',
+              }}
+            >
+              {/* Header */}
+              <div 
+                className="flex items-center justify-between px-4 py-3"
+                style={{ 
+                  borderBottom: '1px solid rgba(234,179,8,0.15)',
+                  background: 'rgba(234,179,8,0.05)'
+                }}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div 
+                    className="w-7 h-7 rounded-lg flex items-center justify-center bg-yellow-500/20"
+                    style={{ border: '1px solid rgba(234,179,8,0.3)' }}
+                  >
+                    <DollarSign className={`w-3.5 h-3.5 text-yellow-400 ${streamingPayments.active ? 'animate-pulse' : ''}`} />
+                  </div>
+                  <div>
+                    <span className="text-[12px] font-semibold text-white/90">x402 Streaming</span>
+                    <p className="text-[10px] text-yellow-300/70">Micropayments</p>
+                  </div>
+                </div>
+                <div className={`px-2 py-0.5 rounded-full text-[9px] font-semibold ${
+                  streamingPayments.active 
+                    ? 'bg-yellow-500/20 text-yellow-400' 
+                    : 'bg-green-500/20 text-green-400'
+                }`}>
+                  {streamingPayments.active ? 'STREAMING' : 'SETTLED'}
+                </div>
+              </div>
+              
+              {/* Content */}
+              <div className="p-4 space-y-3">
+                {/* Live Counter */}
+                <div 
+                  className="rounded-lg p-3 text-center"
+                  style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.12)' }}
+                >
+                  <div className="text-[28px] font-bold text-yellow-400 tabular-nums">
+                    {streamingPayments.globalCount}
+                  </div>
+                  <div className="text-[10px] text-white/40 uppercase tracking-wider">
+                    Micropayments
+                  </div>
+                </div>
+                
+                {/* Stats Grid */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div 
+                    className="rounded-lg p-2.5 text-center"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+                  >
+                    <div className="text-[14px] font-semibold text-white/90 tabular-nums">
+                      ${streamingPayments.totalPaid}
+                    </div>
+                    <div className="text-[9px] text-white/40">Total Paid</div>
+                  </div>
+                  <div 
+                    className="rounded-lg p-2.5 text-center"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+                  >
+                    <div className="text-[14px] font-semibold text-white/90">
+                      {streamingPayments.fromAgent ? `${streamingPayments.fromAgent.slice(0,8)}...` : '-'}
+                    </div>
+                    <div className="text-[9px] text-white/40">From Agent</div>
+                  </div>
+                </div>
+                
+                {/* Flow Indicator */}
+                {streamingPayments.active && streamingPayments.toAgent && (
+                  <div className="flex items-center justify-center gap-2 text-[10px] text-white/50">
+                    <span className="text-yellow-400">{streamingPayments.fromAgent}</span>
+                    <div className="flex items-center gap-0.5">
+                      <div className="w-1 h-1 rounded-full bg-yellow-400 animate-ping" />
+                      <ArrowRight className="w-3 h-3 text-yellow-400/60" />
+                    </div>
+                    <span className="text-green-400">{streamingPayments.toAgent}</span>
+                  </div>
+                )}
+                
+                {/* Info */}
+                <div className="text-[9px] text-white/30 text-center">
+                  Token-level payments per LLM output
+                </div>
               </div>
             </div>
           )}
