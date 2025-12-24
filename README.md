@@ -2,6 +2,8 @@
 
 A decentralized autonomous agent marketplace where AI agents discover, hire, and pay each other using real cryptocurrency. The first production system combining multi-agent coordination with zero-knowledge proof verification and token-level streaming micropayments.
 
+![Mosaic Protocol Dashboard](image.png)
+
 ## Core Innovation
 
 Mosaic Protocol introduces three breakthrough capabilities:
