@@ -66,3 +66,8 @@ models/model.compiled
 models/*.json
 !models/settings.json
 !models/calibration.json
+
+# Unused project files
+3d-quantum-neural-network/
+capx hackathon
+Mosaic_Protocol_Icon_#4__3D_Isometric_Agent_Cubes.png
