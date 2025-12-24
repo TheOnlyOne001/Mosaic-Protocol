@@ -922,101 +922,55 @@ export default function LandingPage() {
             </div>
           )}
 
-          {/* x402 Streaming Payments Panel - Left Side (during execution) */}
+          {/* x402 Streaming Payments Panel - Below Activity Feed */}
           {isRunning && (streamingPayments.active || streamingPayments.globalCount > 0) && !showResults && (
             <div 
-              className="absolute left-6 top-20 w-72 pointer-events-auto overflow-hidden"
+              className="absolute left-6 bottom-36 w-56 pointer-events-auto overflow-hidden"
               style={{
-                background: 'linear-gradient(180deg, rgba(234,179,8,0.12) 0%, rgba(0,0,0,0.4) 100%)',
-                backdropFilter: 'blur(24px)',
-                WebkitBackdropFilter: 'blur(24px)',
-                border: '1px solid rgba(234,179,8,0.2)',
-                borderRadius: '20px',
-                boxShadow: '0 8px 32px rgba(234,179,8,0.2), inset 0 1px 0 rgba(255,255,255,0.05)',
+                background: 'rgba(0,0,0,0.6)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(234,179,8,0.15)',
+                borderRadius: '12px',
               }}
             >
-              {/* Header */}
-              <div 
-                className="flex items-center justify-between px-4 py-3"
-                style={{ 
-                  borderBottom: '1px solid rgba(234,179,8,0.15)',
-                  background: 'rgba(234,179,8,0.05)'
-                }}
-              >
-                <div className="flex items-center gap-2.5">
-                  <div 
-                    className="w-7 h-7 rounded-lg flex items-center justify-center bg-yellow-500/20"
-                    style={{ border: '1px solid rgba(234,179,8,0.3)' }}
-                  >
-                    <DollarSign className={`w-3.5 h-3.5 text-yellow-400 ${streamingPayments.active ? 'animate-pulse' : ''}`} />
-                  </div>
-                  <div>
-                    <span className="text-[12px] font-semibold text-white/90">x402 Streaming</span>
-                    <p className="text-[10px] text-yellow-300/70">Micropayments</p>
-                  </div>
+              {/* Compact Header */}
+              <div className="flex items-center justify-between px-3 py-2 border-b border-yellow-500/10">
+                <div className="flex items-center gap-2">
+                  <DollarSign className={`w-3 h-3 text-yellow-400 ${streamingPayments.active ? 'animate-pulse' : ''}`} />
+                  <span className="text-[11px] font-medium text-white/80">x402 Streaming</span>
                 </div>
-                <div className={`px-2 py-0.5 rounded-full text-[9px] font-semibold ${
+                <div className={`px-1.5 py-0.5 rounded text-[8px] font-semibold ${
                   streamingPayments.active 
                     ? 'bg-yellow-500/20 text-yellow-400' 
                     : 'bg-green-500/20 text-green-400'
                 }`}>
-                  {streamingPayments.active ? 'STREAMING' : 'SETTLED'}
+                  {streamingPayments.active ? 'LIVE' : 'DONE'}
                 </div>
               </div>
               
-              {/* Content */}
-              <div className="p-4 space-y-3">
-                {/* Live Counter */}
-                <div 
-                  className="rounded-lg p-3 text-center"
-                  style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.12)' }}
-                >
-                  <div className="text-[28px] font-bold text-yellow-400 tabular-nums">
+              {/* Compact Content */}
+              <div className="px-3 py-2 flex items-center justify-between">
+                <div className="text-center">
+                  <div className="text-[18px] font-bold text-yellow-400 tabular-nums">
                     {streamingPayments.globalCount}
                   </div>
-                  <div className="text-[10px] text-white/40 uppercase tracking-wider">
-                    Micropayments
-                  </div>
+                  <div className="text-[8px] text-white/40 uppercase">μPayments</div>
                 </div>
-                
-                {/* Stats Grid */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div 
-                    className="rounded-lg p-2.5 text-center"
-                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
-                  >
-                    <div className="text-[14px] font-semibold text-white/90 tabular-nums">
-                      ${streamingPayments.totalPaid}
-                    </div>
-                    <div className="text-[9px] text-white/40">Total Paid</div>
+                <div className="text-center">
+                  <div className="text-[14px] font-semibold text-white/80 tabular-nums">
+                    ${streamingPayments.totalPaid}
                   </div>
-                  <div 
-                    className="rounded-lg p-2.5 text-center"
-                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
-                  >
-                    <div className="text-[14px] font-semibold text-white/90">
-                      {streamingPayments.fromAgent ? `${streamingPayments.fromAgent.slice(0,8)}...` : '-'}
-                    </div>
-                    <div className="text-[9px] text-white/40">From Agent</div>
-                  </div>
+                  <div className="text-[8px] text-white/40 uppercase">Paid</div>
                 </div>
-                
-                {/* Flow Indicator */}
-                {streamingPayments.active && streamingPayments.toAgent && (
-                  <div className="flex items-center justify-center gap-2 text-[10px] text-white/50">
-                    <span className="text-yellow-400">{streamingPayments.fromAgent}</span>
-                    <div className="flex items-center gap-0.5">
-                      <div className="w-1 h-1 rounded-full bg-yellow-400 animate-ping" />
-                      <ArrowRight className="w-3 h-3 text-yellow-400/60" />
+                {streamingPayments.toAgent && (
+                  <div className="text-center">
+                    <div className="text-[10px] font-medium text-green-400 truncate max-w-[60px]">
+                      {streamingPayments.toAgent}
                     </div>
-                    <span className="text-green-400">{streamingPayments.toAgent}</span>
+                    <div className="text-[8px] text-white/40 uppercase">To</div>
                   </div>
                 )}
-                
-                {/* Info */}
-                <div className="text-[9px] text-white/30 text-center">
-                  Token-level payments per LLM output
-                </div>
               </div>
             </div>
           )}
