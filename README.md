@@ -16,30 +16,113 @@ Mosaic Protocol introduces three breakthrough capabilities:
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    subgraph Frontend["🖥️ Frontend - Next.js 14"]
+        UI[React UI + Three.js 3D]
+        WS_Client[WebSocket Client]
+        Wallet[RainbowKit + Wagmi]
+    end
+
+    subgraph Backend["⚙️ Backend - Node.js"]
+        API[Express REST API]
+        TaskEngine[Task Engine]
+        
+        subgraph Agents["🤖 17 Specialized Agents"]
+            Coordinator[Coordinator]
+            Specialists[Research / Analyst / Market / DeFi]
+        end
+        
+        subgraph Systems["Core Systems"]
+            Auction[Attention Auction]
+            x402[x402 Micropayments]
+            ZK[ZK Verification]
+        end
+    end
+
+    subgraph Blockchain["⛓️ Base Sepolia"]
+        Registry[AgentRegistry ERC-721]
+        JobManager[VerifiableJobManager]
+        Verifier[Halo2Verifier]
+        USDC[USDC Token]
+    end
+
+    subgraph External["🌐 External"]
+        Groq[Groq LLM]
+        APIs[CoinGecko / DeFiLlama]
+    end
+
+    UI <--> WS_Client
+    WS_Client <--> API
+    Wallet --> USDC
+    
+    API --> TaskEngine
+    TaskEngine --> Coordinator
+    Coordinator --> Specialists
+    TaskEngine --> Auction --> Registry
+    TaskEngine --> x402 --> USDC
+    TaskEngine --> ZK --> JobManager --> Verifier
+    
+    Specialists --> Groq
+    Specialists --> APIs
 ```
-                                 FRONTEND (Next.js 14)
-                    Real-time Dashboard / WebSocket Events / 3D Visualization
-                                        |
-                                   REST + WebSocket
-                                        |
-                                 BACKEND (Node.js)
-            +----------------------------------------------------------+
-            |                    Task Orchestration                     |
-            |   TaskEngine (919 lines) | CoordinatorAgent | Autonomy   |
-            +----------------------------------------------------------+
-            |                    Agent Execution                        |
-            |   16 Specialized Agents | 3 Execution Modes | Groq LLM   |
-            +----------------------------------------------------------+
-            |                    Payment Layer                          |
-            |   x402 Streaming | Attention Auctions | USDC Transfers   |
-            +----------------------------------------------------------+
-            |                    Verification Layer                     |
-            |   EZKL Prover | Halo2 Circuits | On-Chain Settlement     |
-            +----------------------------------------------------------+
-                                        |
-                               BLOCKCHAIN (Base Sepolia)
-            AgentRegistry (ERC-721) | VerifiableJobManager | Halo2Verifier
+
+### Task Execution Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant B as Backend
+    participant C as Coordinator
+    participant R as AgentRegistry
+    participant A as Agent
+    participant BC as Blockchain
+
+    U->>F: Submit Task
+    F->>B: POST /api/tasks
+    B->>C: Analyze & Decompose
+    C-->>B: TaskPlan
+    
+    loop Each Subtask
+        B->>R: Query Capability
+        R-->>B: Candidates
+        B->>B: Attention Auction
+        B->>BC: USDC Payment
+        B->>A: Execute
+        A-->>B: Result + Micropayments
+    end
+    
+    B->>C: Synthesize
+    C-->>B: Final Report
+    B->>F: task:complete
+    F->>U: Display Results
 ```
+
+### Payment Flow
+
+```mermaid
+flowchart LR
+    User["💳 User"] -->|Total Payment| Coordinator
+    Coordinator -->|Agent Fees| Agents["🤖 Agents"]
+    Coordinator -->|20%| Buffer[Buffer]
+    Coordinator -->|10%| Platform[Platform Fee]
+    Agents -.->|Profits| Owners["👤 Agent Owners"]
+```
+
+### ZK Verification Pipeline
+
+```mermaid
+flowchart LR
+    Task[Task] --> LLM[LLM Execution] --> Output[Output]
+    Output --> Embed[Embeddings] --> EZKL[EZKL] --> Proof[ZK Proof]
+    Proof --> Submit[Submit On-Chain]
+    Submit --> Verify{Halo2 Verify}
+    Verify -->|Valid| Pay[✅ Release Payment]
+    Verify -->|Invalid| Slash[❌ Slash + Refund]
+```
+
+> 📐 **Full Architecture Diagrams**: See [docs/architecture.md](docs/architecture.md) for complete Mermaid diagrams
 
 ## The Agent Ecosystem
 
