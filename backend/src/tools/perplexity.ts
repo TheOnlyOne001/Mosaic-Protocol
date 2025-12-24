@@ -5,14 +5,13 @@
  * Models Available:
  * - sonar: Fast, basic web search ($1/1M tokens)
  * - sonar-pro: Deep research with better citations ($3/1M tokens)
- * - sonar-reasoning: Complex analysis and strategy ($5/1M tokens)
  */
 
 import { config } from '../config.js';
 import * as pipelineLog from '../pipelineLogger.js';
 
 // Available Perplexity models
-export type PerplexityModel = 'sonar' | 'sonar-pro' | 'sonar-reasoning';
+export type PerplexityModel = 'sonar' | 'sonar-pro';
 
 export interface PerplexitySearchOptions {
     model?: PerplexityModel;
@@ -213,7 +212,7 @@ export function selectPerplexityModel(query: string): PerplexityModel {
     ];
     
     if (reasoningKeywords.some(k => queryLower.includes(k))) {
-        return 'sonar-reasoning';
+        return 'sonar-pro';
     }
     
     if (deepKeywords.some(k => queryLower.includes(k))) {
@@ -248,12 +247,12 @@ export async function deepResearch(query: string): Promise<PerplexityResult> {
 }
 
 /**
- * Reasoning research using sonar-reasoning model
+ * Reasoning research using sonar-pro model
  * Best for complex analysis, strategy, and recommendations
  */
 export async function reasoningResearch(query: string): Promise<PerplexityResult> {
     return searchPerplexity(query, {
-        model: 'sonar-reasoning',
+        model: 'sonar-pro',
         searchRecency: 'month',
         temperature: 0.3,
     });

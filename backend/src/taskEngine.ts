@@ -850,12 +850,13 @@ export async function executeTaskWithQuote(quote: {
 
         broadcast({ type: 'agent:status', id: 'coordinator', status: 'complete' });
 
-        // Broadcast final output
+        // Broadcast final output with consistent format
         broadcast({
             type: 'task:complete',
+            result: finalOutput,
             output: finalOutput,
             quoteId: quote.quoteId,
-            totalCost: totalCost.toString(),
+            totalCost: `$${(Number(totalCost) / 1_000_000).toFixed(2)}`,
         } as any);
 
         // Get decision summary
