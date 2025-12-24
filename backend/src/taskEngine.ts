@@ -587,28 +587,27 @@ function createAgentFromOption(agent: AgentOption): AgentExecutor | null {
  * Maps backend agent names to frontend agent IDs
  */
 function getAgentStatusId(name: string): string {
-    // Direct mapping from agent names to frontend IDs
+    // Direct mapping from on-chain agent names to frontend neural network IDs
     const nameToId: Record<string, string> = {
+        // Core agents
         'coordinator': 'coordinator',
-        'research-1': 'research',
-        'research-2': 'research2',
-        'market-coingecko': 'market1',
-        'market-defillama': 'market2',
-        'analyst-1': 'analyst',
-        'analyst-pro': 'analyst2',
-        'writer-fast': 'writer',
-        'writer-quality': 'writer2',
-        'summarizer': 'summarizer',
+        'perplexity-research': 'research',
+        'coingecko-markets': 'market',
+        'defillama-data': 'market',
+        'deep-analyst': 'analyst',
+        'report-writer': 'writer',
+        'summarizer': 'writer',
+        // Specialized DeFi agents
         'defi-safety': 'defi-safety',
         'onchain-analyst': 'onchain-analyst',
         'smart-router': 'smart-router',
-        'portfolio-manager': 'portfolio-manager',
-        'yield-optimizer': 'yield-optimizer',
-        'bridge-agent': 'bridge-agent',
-        'liquidation-protection': 'liquidation-protection',
-        'governance-agent': 'governance-agent',
-        'alert-agent': 'alert-agent',
-        'executor-agent': 'executor-agent',
+        'portfolio-manager': 'portfolio',
+        'yield-optimizer': 'yield-opt',
+        'bridge-agent': 'bridge',
+        'liquidation-protection': 'liquidation',
+        'governance-agent': 'governance',
+        'alert-agent': 'alert',
+        'executor-agent': 'executor',
     };
     
     const normalized = name.toLowerCase().replace(/\s+/g, '-');
@@ -618,15 +617,25 @@ function getAgentStatusId(name: string): string {
         return nameToId[normalized];
     }
     
-    // Fallback: extract capability from name
-    if (normalized.includes('research')) return normalized.includes('2') ? 'research2' : 'research';
-    if (normalized.includes('market')) return normalized.includes('llama') ? 'market2' : 'market1';
-    if (normalized.includes('analyst')) return normalized.includes('pro') || normalized.includes('2') ? 'analyst2' : 'analyst';
-    if (normalized.includes('writer')) return normalized.includes('quality') || normalized.includes('2') ? 'writer2' : 'writer';
-    if (normalized.includes('summar')) return 'summarizer';
+    // Fallback: extract type from name
+    if (normalized.includes('research') || normalized.includes('perplexity')) return 'research';
+    if (normalized.includes('market') || normalized.includes('coingecko') || normalized.includes('defillama')) return 'market';
+    if (normalized.includes('analyst') && normalized.includes('deep')) return 'analyst';
+    if (normalized.includes('analyst') && normalized.includes('onchain')) return 'onchain-analyst';
+    if (normalized.includes('writer') || normalized.includes('report')) return 'writer';
+    if (normalized.includes('summar')) return 'writer';
+    if (normalized.includes('safety') || normalized.includes('defi')) return 'defi-safety';
+    if (normalized.includes('router')) return 'smart-router';
+    if (normalized.includes('portfolio')) return 'portfolio';
+    if (normalized.includes('yield')) return 'yield-opt';
+    if (normalized.includes('bridge')) return 'bridge';
+    if (normalized.includes('liquidation')) return 'liquidation';
+    if (normalized.includes('governance')) return 'governance';
+    if (normalized.includes('alert')) return 'alert';
+    if (normalized.includes('executor')) return 'executor';
     
-    // Last resort: strip numbers and special chars
-    return normalized.replace(/-/g, '').replace(/[0-9]/g, '');
+    // Last resort: return normalized name without dashes
+    return normalized.replace(/-/g, '');
 }
 
 /**

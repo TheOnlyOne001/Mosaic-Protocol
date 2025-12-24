@@ -132,8 +132,9 @@ export default function LandingPage() {
       switch (event.type) {
         case 'agent:status':
           // Handle agent status changes - activate/deactivate agents visually
+          // Backend sends IDs matching AGENTS array (e.g., 'research', 'defi-safety', 'smart-router')
           if (event.status === 'working') {
-            const agentId = event.id?.toLowerCase().replace(/-/g, '');
+            const agentId = event.id?.toLowerCase();
             if (agentId) {
               console.log('[Landing] Agent working:', agentId);
               setActiveAgents(prev => prev.includes(agentId) ? prev : [...prev, agentId]);
@@ -165,9 +166,11 @@ export default function LandingPage() {
           setStatusMessage(event.message || event.stage || '');
           break;
         case 'execution:start':
-          // Agent starting execution
+          // Agent starting execution - agentName comes from backend as full name
+          // Need to map it to frontend ID using CAPABILITY_TO_AGENT or direct lookup
           if (event.agentName) {
-            const agentId = event.agentName.toLowerCase().replace(/-/g, '').replace(/\s+/g, '');
+            // Backend sends agent names like "Deep-Analyst", normalize to match AGENTS array
+            const agentId = event.agentName.toLowerCase().replace(/\s+/g, '-');
             console.log('[Landing] Execution start:', agentId);
             setActiveAgents(prev => prev.includes(agentId) ? prev : [...prev, agentId]);
             setStatusMessage(`${event.agentName} executing...`);
