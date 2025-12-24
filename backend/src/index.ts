@@ -653,9 +653,11 @@ async function start() {
     // Validate config
     const configValid = validateConfig();
     
-    if (!config.anthropicApiKey) {
-        console.error('❌ ANTHROPIC_API_KEY is required for real agent execution');
-        console.log('   Set it in your .env file\n');
+    if (!config.groqApiKey && !config.anthropicApiKey) {
+        console.error('❌ No LLM API key configured. Set GROQ_API_KEY (recommended) or ANTHROPIC_API_KEY');
+        console.log('   Set it in your .env file or provide via Settings\n');
+    } else if (!config.anthropicApiKey) {
+        console.log('ℹ️  ANTHROPIC_API_KEY not set - using Groq as primary LLM (recommended)\n');
     }
 
     // Initialize registry connection

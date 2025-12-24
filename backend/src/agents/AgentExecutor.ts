@@ -99,10 +99,11 @@ export interface AgentConfig {
 // Initialize Anthropic client (fallback only)
 let anthropicClient: Anthropic | null = null;
 
-function getAnthropicClient(): Anthropic {
+function getAnthropicClient(): Anthropic | null {
     if (!anthropicClient) {
         if (!config.anthropicApiKey) {
-            throw new Error('ANTHROPIC_API_KEY is not configured');
+            // Anthropic not configured - will use Groq instead
+            return null;
         }
         anthropicClient = new Anthropic({
             apiKey: config.anthropicApiKey,
@@ -112,8 +113,13 @@ function getAnthropicClient(): Anthropic {
 }
 
 // Determine if we should use Groq (default) or Claude
+// Groq is preferred, Claude is fallback
 function shouldUseGroq(): boolean {
-    return !!config.groqApiKey;
+    // Use Groq if available, otherwise try Claude
+    if (config.groqApiKey) return true;
+    if (config.anthropicApiKey) return false;
+    // Neither configured - default to Groq (will fail gracefully)
+    return true;
 }
 
 /**
@@ -122,13 +128,13 @@ function shouldUseGroq(): boolean {
  */
 export abstract class AgentExecutor {
     protected config: AgentConfig;
-    protected client: Anthropic;
+    protected client: Anthropic | null;
     protected useGroq: boolean;
 
     constructor(agentConfig: AgentConfig) {
         this.config = agentConfig;
         this.useGroq = shouldUseGroq();
-        this.client = this.useGroq ? null as any : getAnthropicClient();
+        this.client = this.useGroq ? null : getAnthropicClient();
     }
 
     get tokenId(): number { return this.config.tokenId; }
@@ -177,6 +183,9 @@ export abstract class AgentExecutor {
                 tokensUsed = response.usage.total_tokens;
             } else {
                 // Fallback to Claude API
+                if (!this.client) {
+                    throw new Error('No LLM configured. Set GROQ_API_KEY or ANTHROPIC_API_KEY.');
+                }
                 const model = this.getClaudeModel();
                 const response = await this.client.messages.create({
                     model: model,
@@ -321,6 +330,9 @@ export abstract class AgentExecutor {
                 console.log(`   ✅ ${this.name} completed (${totalTokens} tokens, ${stream.microPaymentCount} micro-payments)`);
             } else {
                 // Claude streaming
+                if (!this.client) {
+                    throw new Error('No LLM configured. Set GROQ_API_KEY or ANTHROPIC_API_KEY.');
+                }
                 const model = this.getClaudeModel();
                 const streamResponse = this.client.messages.stream({
                     model: model,
