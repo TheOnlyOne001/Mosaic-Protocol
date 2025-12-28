@@ -1,9 +1,21 @@
 import dotenv from 'dotenv';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-// Load from root .env
-dotenv.config({ path: resolve(process.cwd(), '../.env') });
-dotenv.config({ path: resolve(process.cwd(), '.env') });
+// Get directory of this file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load from root .env (two levels up from src/config.ts)
+const rootEnvPath = resolve(__dirname, '../../.env');
+const backendEnvPath = resolve(__dirname, '../.env');
+
+dotenv.config({ path: rootEnvPath });
+dotenv.config({ path: backendEnvPath });
+
+// Debug: Log escrow config on load
+console.log(`[Config] Escrow Address: ${process.env.X402_ESCROW_ADDRESS || 'NOT SET'}`);
+console.log(`[Config] Use Escrow: ${process.env.USE_X402_ESCROW}`);
 
 // User-provided API keys storage (set by middleware in index.ts)
 let userProvidedKeys: {
@@ -50,6 +62,10 @@ export const config = {
     registryAddress: process.env.REGISTRY_ADDRESS || '',
     verifiableJobManagerAddress: process.env.VERIFIABLE_JOB_MANAGER_ADDRESS || '',
     halo2VerifierAddress: process.env.HALO2_VERIFIER_ADDRESS || '',
+    
+    // X402 Escrow Contract
+    x402EscrowAddress: process.env.X402_ESCROW_ADDRESS || '',
+    useX402Escrow: process.env.USE_X402_ESCROW === 'true',
     
     // RPC
     rpcUrl: process.env.BASE_SEPOLIA_RPC || 'https://sepolia.base.org',

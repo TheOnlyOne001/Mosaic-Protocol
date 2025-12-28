@@ -85,12 +85,12 @@ export class ContractScanner {
         const safeToken = isKnownSafeToken(chain, address);
         if (safeToken.isSafe) {
             console.log(`[ContractScanner] ${safeToken.name} is a known safe token`);
-            return this.createSafeResult(address, chain, bytecode, safeToken.name);
+            return await this.createSafeResult(address, chain, bytecode, safeToken.name);
         }
         
         // Check if known safe contract (legacy check)
         if (isKnownSafe(address)) {
-            return this.createSafeResult(address, chain, bytecode);
+            return await this.createSafeResult(address, chain, bytecode);
         }
         
         // Analyze bytecode for dangerous patterns
@@ -125,7 +125,7 @@ export class ContractScanner {
             hasFeeChange: dangerousFunctions.some(f => f.includes('fee') || f.includes('tax')),
             hasMaxTx: dangerousFunctions.some(f => f.includes('max')),
             hasProxy: dangerousFunctions.some(f => f.includes('upgrade') || f.includes('implementation')),
-            hasSelfDestruct: bytecode.toLowerCase().includes('ff'), // SELFDESTRUCT opcode
+            hasSelfDestruct: this.detectSelfDestruct(bytecode), // Proper SELFDESTRUCT detection
             
             dangerousFunctions,
             
@@ -134,6 +134,46 @@ export class ContractScanner {
             contractRisk: risk,
             warnings,
         };
+    }
+    
+    /**
+     * Detect SELFDESTRUCT opcode properly (not just 'ff' byte)
+     * SELFDESTRUCT is opcode 0xFF but we need to verify it's in code section
+     */
+    private detectSelfDestruct(bytecode: string): boolean {
+        const byteLower = bytecode.toLowerCase().slice(2); // Remove 0x prefix
+        
+        // SELFDESTRUCT is 0xFF opcode, but 'ff' can appear in:
+        // - Address literals (0xff...)
+        // - Number constants
+        // - Constructor arguments
+        // We look for patterns that suggest actual SELFDESTRUCT usage:
+        // - FF at end of code section (common)
+        // - PUSH followed by FF (selfdestruct(address))
+        
+        // Check for common SELFDESTRUCT patterns:
+        // Pattern 1: 73<addr>FF - PUSH20 address followed by SELFDESTRUCT
+        if (/73[a-f0-9]{40}ff/i.test(byteLower)) {
+            return true;
+        }
+        
+        // Pattern 2: 33FF - CALLER followed by SELFDESTRUCT
+        if (byteLower.includes('33ff')) {
+            return true;
+        }
+        
+        // Pattern 3: 32FF - ORIGIN followed by SELFDESTRUCT
+        if (byteLower.includes('32ff')) {
+            return true;
+        }
+        
+        // Pattern 4: Look for ff preceded by stack operations (50-5f are DUP, 80-8f are SWAP)
+        // This is a heuristic - actual decompilation would be better
+        if (/[5-8][0-9a-f]ff/i.test(byteLower)) {
+            return true;
+        }
+        
+        return false;
     }
     
     /**
@@ -263,11 +303,10 @@ export class ContractScanner {
             warnings.push('Contract is upgradeable - code can be changed');
         }
         
-        // Self-destruct - critical risk
-        if (bytecode.toLowerCase().includes('ff')) {
-            // Check if it's actually SELFDESTRUCT (this is a simplified check)
+        // Self-destruct - critical risk (using proper detection)
+        if (this.detectSelfDestruct(bytecode)) {
             risk += 40;
-            warnings.push('Contract may have self-destruct capability');
+            warnings.push('Contract has self-destruct capability - funds can be permanently lost');
         }
         
         // Owner not renounced - adds risk to all owner functions

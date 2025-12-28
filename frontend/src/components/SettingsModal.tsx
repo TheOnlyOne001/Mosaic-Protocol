@@ -23,7 +23,7 @@ export function getStoredAPIKeys(): APIKeys {
       backendUrl: DEFAULT_BACKEND_URL,
     };
   }
-  
+
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -38,7 +38,7 @@ export function getStoredAPIKeys(): APIKeys {
   } catch (e) {
     console.error('Failed to parse stored API keys:', e);
   }
-  
+
   return {
     groqApiKey: '',
     anthropicApiKey: '',
@@ -63,7 +63,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     perplexityApiKey: '',
     backendUrl: DEFAULT_BACKEND_URL,
   });
-  
+
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
@@ -101,15 +101,15 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const testConnection = async () => {
     setTestingConnection(true);
     setConnectionStatus('idle');
-    
+
     try {
-      const response = await fetch(`${keys.backendUrl}/health`, {
+      const response = await fetch(`${keys.backendUrl}/api/health`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
       });
-      
+
       if (response.ok) {
         setConnectionStatus('success');
       } else {
@@ -155,7 +155,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop with blur */}
-      <div 
+      <div
         className="absolute inset-0"
         style={{
           background: 'rgba(6, 6, 8, 0.85)',
@@ -164,9 +164,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         }}
         onClick={onClose}
       />
-      
+
       {/* Modal Card - Premium Glassmorphism */}
-      <div 
+      <div
         className="relative w-full max-w-lg overflow-hidden"
         style={{
           background: 'rgba(255, 255, 255, 0.03)',
@@ -178,13 +178,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         }}
       >
         {/* Header */}
-        <div 
+        <div
           className="flex items-center justify-between p-5"
           style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}
         >
           <div className="flex items-center gap-3">
-            <div 
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center"
               style={{
                 background: 'linear-gradient(135deg, rgba(255,138,0,0.2) 0%, rgba(255,59,107,0.2) 100%)',
                 border: '1px solid rgba(255, 138, 0, 0.3)',
@@ -212,7 +212,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         {/* Content */}
         <div className="p-5 space-y-5 max-h-[65vh] overflow-y-auto">
           {/* Info Banner */}
-          <div 
+          <div
             className="p-4 rounded-xl"
             style={{
               background: 'linear-gradient(135deg, rgba(255,138,0,0.08) 0%, rgba(255,59,107,0.08) 100%)',
@@ -326,9 +326,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </div>
 
         {/* Footer */}
-        <div 
+        <div
           className="flex items-center justify-between p-5"
-          style={{ 
+          style={{
             borderTop: '1px solid rgba(255, 255, 255, 0.06)',
             background: 'rgba(0, 0, 0, 0.2)',
           }}
@@ -341,7 +341,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <Trash2 className="w-4 h-4" />
             Clear All
           </button>
-          
+
           <div className="flex items-center gap-3">
             {saved && (
               <span className="flex items-center gap-1.5 text-emerald-400 text-[12px]">

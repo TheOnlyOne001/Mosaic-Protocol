@@ -139,7 +139,30 @@ flowchart LR
 ### DeFi Specialist Agents
 
 **DeFi Safety Agent** - $0.50 | `token_safety_analysis`
-Comprehensive token security analysis including honeypot detection through sell simulation, rug pull risk assessment via ownership and mint function analysis, liquidity lock verification, and holder distribution profiling.
+The most comprehensive on-chain token security analysis system with **actionable verdicts**:
+
+🔬 **Advanced Analysis Modules:**
+- **Honeypot Detection**: Multi-context sell simulation across different amounts, gas prices, and DEXs
+- **Rug Pull Risk**: Contract ownership analysis, mint function detection, proxy upgradability checks
+- **Liquidity Analysis**: Multi-DEX aggregation (Uniswap V2/V3, SushiSwap, PancakeSwap), LP lock verification via Team Finance/Unicrypt
+- **Holder Distribution**: Top holder concentration, deployer wallet tracking, whale movement patterns
+- **Flash Loan Detection**: Identifies susceptibility to flash loan attacks
+- **MEV Analysis**: Sandwich attack vulnerability assessment
+- **Audit Verification**: Cross-references with CertiK, Hacken, PeckShield databases
+- **Governance Analysis**: Admin key risks, timelock verification, multisig requirements
+- **Oracle Analysis**: Price feed manipulation vulnerability detection
+
+📊 **Actionable Output Format:**
+```
+🎯 ACTIONABLE VERDICT
+══════════════════════════════════════════════════════
+✅ SAFE TO BUY - Low risk based on on-chain analysis
+   ✓ LP locked 95% via Team Finance
+   ✓ Ownership renounced
+   ✓ Low sell tax (2%)
+```
+
+🔄 **Historical Pattern Matching**: Records all analyzed tokens to a dynamic pattern database for improved future detection
 
 **OnChain Analyst** - $0.25 | `onchain_analysis`
 Deep blockchain analytics covering wallet profiling with transaction history decoding, token holding pattern analysis, cross-protocol activity tracking across EVM chains, Solana, and Bitcoin.
@@ -166,7 +189,27 @@ Proposal analysis with economic impact assessment, voting power calculation, and
 Price threshold monitoring, gas tracking, whale movement detection, and position health alerts.
 
 **Executor Agent** - $0.50 | `autonomous_execution`
-Transaction building with safety simulation, multi-step DeFi strategy composition, and autonomous agent hiring for complex operations.
+Production-grade autonomous transaction execution with comprehensive safety features:
+
+⚡ **Core Capabilities:**
+- **Transaction Building**: ABI-aware calldata construction for any protocol
+- **Safety Simulation**: Pre-flight simulation via Tenderly/Anvil fork
+- **Multi-Step Strategies**: Chain complex DeFi operations (swap → deposit → stake)
+- **Nonce Management**: Parallel transaction queuing with proper nonce handling
+- **Gas Optimization**: Dynamic gas pricing with EIP-1559 support
+
+🔐 **Safety Features:**
+- Slippage protection with configurable tolerance
+- Deadline enforcement for time-sensitive operations
+- Value transfer validation
+- Revert reason decoding
+- Autonomous agent hiring for sub-tasks
+
+📋 **Supported Protocols:**
+- DEXs: Uniswap V2/V3, SushiSwap, Curve, Balancer
+- Lending: Aave V3, Compound V3, Morpho
+- Staking: Lido, Rocket Pool, EigenLayer
+- Bridges: Across, Stargate, Hop
 
 ## Verifiable AI System
 
@@ -213,6 +256,43 @@ Task Input --> Agent Execution --> ZK Proof Generation --> On-Chain Verification
 - EZKL-generated verification circuit
 - Pairing-based cryptography for proof validation
 - Gas-optimized assembly implementation (~350,000 gas per verification)
+
+## Advanced Multi-Agent Coordination
+
+### Actionable Report Synthesis
+
+The Coordinator Agent uses an enhanced synthesis system that produces **immediately actionable intelligence**:
+
+```
+### 1. Executive Summary
+Clear verdict with confidence level
+
+### 2. Key Findings  
+Specific numbers, addresses, percentages
+
+### 3. Risk Assessment
+Overall Risk Level: LOW/MEDIUM/HIGH/CRITICAL with score
+
+### 4. Actionable Recommendations
+Concrete BUY/DON'T BUY verdicts with evidence
+
+### 5. Execution Roadmap
+Step-by-step transaction sequence with costs
+
+### 6. Monitoring & Alerts
+What to watch going forward
+```
+
+### Pre-Built Workflow Templates
+
+Complex multi-agent scenarios available out of the box:
+
+| Template | Stages | Description |
+|----------|--------|-------------|
+| `tokenSafetyCheck` | 2 | Parallel safety analysis → actionable verdict |
+| `yieldOptimization` | 3 | Portfolio discovery → yield scanning → strategy composition |
+| `positionProtection` | 2 | Health check → alert setup + deleverage planning |
+| `defiPowerUserStrategy` | 3 | Multi-chain discovery → parallel risk/yield/bridge → execution plan |
 
 ## Autonomous Agent Hiring
 

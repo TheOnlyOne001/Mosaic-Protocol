@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Loader2, CheckCircle, AlertCircle, Wallet, ArrowRight, Clock, DollarSign, ExternalLink } from 'lucide-react';
+import { X, Loader2, CheckCircle, AlertCircle, Wallet, ArrowRight, Clock, DollarSign, ExternalLink, Shield, Zap, Users } from 'lucide-react';
 import { useUSDCPayment, PaymentStatus, TaskQuote } from '@/hooks/useUSDCPayment';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAccount } from 'wagmi';
 
 interface QuoteModalProps {
   isOpen: boolean;
@@ -18,65 +19,65 @@ interface QuoteModalProps {
 function StatusIndicator({ status, error }: { status: PaymentStatus; error: string | null }) {
   const statusConfig: Record<PaymentStatus, { icon: React.ReactNode; text: string; color: string }> = {
     idle: { icon: null, text: '', color: '' },
-    fetching_quote: { 
-      icon: <Loader2 className="w-5 h-5 animate-spin" />, 
-      text: 'Analyzing task...', 
-      color: 'text-blue-400' 
+    fetching_quote: {
+      icon: <Loader2 className="w-5 h-5 animate-spin" />,
+      text: 'Analyzing task...',
+      color: 'text-blue-400'
     },
-    quote_ready: { 
-      icon: <CheckCircle className="w-5 h-5" />, 
-      text: 'Quote ready', 
-      color: 'text-green-400' 
+    quote_ready: {
+      icon: <CheckCircle className="w-5 h-5" />,
+      text: 'Quote ready',
+      color: 'text-green-400'
     },
-    checking_allowance: { 
-      icon: <Loader2 className="w-5 h-5 animate-spin" />, 
-      text: 'Checking allowance...', 
-      color: 'text-blue-400' 
+    checking_allowance: {
+      icon: <Loader2 className="w-5 h-5 animate-spin" />,
+      text: 'Checking allowance...',
+      color: 'text-blue-400'
     },
-    approving: { 
-      icon: <Loader2 className="w-5 h-5 animate-spin" />, 
-      text: 'Approve in wallet...', 
-      color: 'text-yellow-400' 
+    approving: {
+      icon: <Loader2 className="w-5 h-5 animate-spin" />,
+      text: 'Approve in wallet...',
+      color: 'text-yellow-400'
     },
-    approval_pending: { 
-      icon: <Loader2 className="w-5 h-5 animate-spin" />, 
-      text: 'Waiting for approval...', 
-      color: 'text-yellow-400' 
+    approval_pending: {
+      icon: <Loader2 className="w-5 h-5 animate-spin" />,
+      text: 'Waiting for approval...',
+      color: 'text-yellow-400'
     },
-    transferring: { 
-      icon: <Loader2 className="w-5 h-5 animate-spin" />, 
-      text: 'Confirm transfer in wallet...', 
-      color: 'text-yellow-400' 
+    transferring: {
+      icon: <Loader2 className="w-5 h-5 animate-spin" />,
+      text: 'Confirm transfer in wallet...',
+      color: 'text-yellow-400'
     },
-    transfer_pending: { 
-      icon: <Loader2 className="w-5 h-5 animate-spin" />, 
-      text: 'Waiting for confirmation...', 
-      color: 'text-yellow-400' 
+    transfer_pending: {
+      icon: <Loader2 className="w-5 h-5 animate-spin" />,
+      text: 'Waiting for confirmation...',
+      color: 'text-yellow-400'
     },
-    verifying: { 
-      icon: <Loader2 className="w-5 h-5 animate-spin" />, 
-      text: 'Verifying payment...', 
-      color: 'text-blue-400' 
+    verifying: {
+      icon: <Loader2 className="w-5 h-5 animate-spin" />,
+      text: 'Verifying payment...',
+      color: 'text-blue-400'
     },
-    executing: { 
-      icon: <Loader2 className="w-5 h-5 animate-spin" />, 
-      text: 'Task executing...', 
-      color: 'text-purple-400' 
+    executing: {
+      icon: <Loader2 className="w-5 h-5 animate-spin" />,
+      text: 'Task executing...',
+      color: 'text-purple-400'
     },
-    complete: { 
-      icon: <CheckCircle className="w-5 h-5" />, 
-      text: 'Payment complete!', 
-      color: 'text-green-400' 
+    complete: {
+      icon: <CheckCircle className="w-5 h-5" />,
+      text: 'Payment complete!',
+      color: 'text-green-400'
     },
-    error: { 
-      icon: <AlertCircle className="w-5 h-5" />, 
-      text: error || 'An error occurred', 
-      color: 'text-red-400' 
+    error: {
+      icon: <AlertCircle className="w-5 h-5" />,
+      text: error || 'An error occurred',
+      color: 'text-red-400'
     },
   };
 
   const config = statusConfig[status];
-  
+
   if (!config.text) return null;
 
   return (
@@ -88,39 +89,124 @@ function StatusIndicator({ status, error }: { status: PaymentStatus; error: stri
 }
 
 /**
- * Price breakdown component
+ * x402 Payment Flow - minimal 2-color design (orange + white)
+ */
+function X402PaymentFlow() {
+  const useEscrow = process.env.NEXT_PUBLIC_USE_ESCROW === 'true';
+  const escrowAddress = process.env.NEXT_PUBLIC_X402_ESCROW_ADDRESS;
+
+  return (
+    <div
+      className="rounded-xl p-3"
+      style={{
+        background: 'rgba(255,138,0,0.05)',
+        border: '1px solid rgba(255,138,0,0.1)'
+      }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-bold text-orange-400/80 px-1.5 py-0.5 rounded bg-orange-400/10">x402</span>
+          <span className="text-[11px] font-medium text-white/70">
+            {useEscrow ? 'Escrow Payment' : 'Streaming Payment'}
+          </span>
+        </div>
+      </div>
+
+      {/* Simple flow */}
+      <div className="flex items-center gap-2 text-[10px] text-white/40">
+        <span>You</span>
+        <ArrowRight className="w-3 h-3 text-orange-400/60" />
+        <span className="text-orange-400/80">{useEscrow ? 'Contract' : 'Coordinator'}</span>
+        <ArrowRight className="w-3 h-3 text-orange-400/60" />
+        <span>Agents</span>
+      </div>
+
+      {/* Contract link */}
+      {useEscrow && escrowAddress && (
+        <a
+          href={`https://sepolia.basescan.org/address/${escrowAddress}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 mt-2 text-[9px] text-orange-400/60 hover:text-orange-400 transition-colors"
+        >
+          <ExternalLink className="w-2.5 h-2.5" />
+          View Contract
+        </a>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Price breakdown component - elegant pricing display
  */
 function PriceBreakdown({ quote }: { quote: TaskQuote }) {
+  const useEscrow = process.env.NEXT_PUBLIC_USE_ESCROW === 'true';
+
   return (
-    <div className="rounded-xl p-4 space-y-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <h4 className="text-[13px] font-medium text-white/50 mb-3">Price Breakdown</h4>
-      
-      <div className="flex justify-between text-[13px]">
-        <span className="text-white/40">Coordinator Fee</span>
-        <span className="text-white/80">{quote.breakdown.coordinatorFeeFormatted}</span>
-      </div>
-      
-      {quote.agents.map((agent, i) => (
-        <div key={i} className="flex justify-between text-[13px]">
-          <span className="text-white/40">{agent.name}</span>
-          <span className="text-white/80">{agent.priceFormatted}</span>
+    <div className="space-y-3">
+      {/* x402 Payment Flow Indicator */}
+      <X402PaymentFlow />
+
+      {/* Pricing card - simple design */}
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid rgba(255,255,255,0.05)'
+        }}
+      >
+        {/* Header */}
+        <div
+          className="px-4 py-2.5 flex items-center gap-2"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+        >
+          <DollarSign className="w-3.5 h-3.5 text-white/30" />
+          <span className="text-[11px] font-medium text-white/50">Cost Breakdown</span>
         </div>
-      ))}
-      
-      <div className="flex justify-between text-[13px]">
-        <span className="text-white/40">Buffer (20%)</span>
-        <span className="text-white/80">{quote.breakdown.bufferFormatted}</span>
-      </div>
-      
-      <div className="flex justify-between text-[13px]">
-        <span className="text-white/40">Platform Fee (10%)</span>
-        <span className="text-white/80">{quote.breakdown.platformFeeFormatted}</span>
-      </div>
-      
-      <div className="pt-3 mt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-        <div className="flex justify-between text-[14px] font-semibold">
-          <span className="text-white/90">Total</span>
-          <span style={{ background: 'linear-gradient(135deg, #ff8a00, #ff3b6b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{quote.breakdown.totalFormatted} USDC</span>
+
+        {/* Items */}
+        <div className="p-3 space-y-2">
+          {/* Coordinator */}
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <div className="w-1 h-1 rounded-full bg-orange-400/60" />
+              <span className="text-[11px] text-white/40">Coordinator</span>
+            </div>
+            <span className="text-[11px] text-white/60 font-medium">{quote.breakdown.coordinatorFeeFormatted}</span>
+          </div>
+
+          {/* Agents */}
+          {quote.agents.map((agent, i) => (
+            <div key={i} className="flex justify-between items-center">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-1 h-1 rounded-full bg-orange-400/60 flex-shrink-0" />
+                <span className="text-[11px] text-white/40 truncate">{agent.name}</span>
+              </div>
+              <span className="text-[11px] text-white/60 font-medium flex-shrink-0 ml-2">{agent.priceFormatted}</span>
+            </div>
+          ))}
+
+          {/* Buffer & Platform - grouped */}
+          <div className="flex justify-between items-center pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.03)' }}>
+            <span className="text-[10px] text-white/30">Buffer + Platform</span>
+            <span className="text-[10px] text-white/40">{quote.breakdown.bufferFormatted}</span>
+          </div>
+        </div>
+
+        {/* Total */}
+        <div
+          className="px-4 py-3 flex justify-between items-center"
+          style={{
+            background: 'rgba(255,138,0,0.06)',
+            borderTop: '1px solid rgba(255,255,255,0.04)'
+          }}
+        >
+          <span className="text-[12px] font-medium text-white/70">Total</span>
+          <span className="text-[15px] font-bold text-orange-400">
+            {quote.breakdown.totalFormatted} <span className="text-[10px] text-white/40 font-normal">USDC</span>
+          </span>
         </div>
       </div>
     </div>
@@ -128,26 +214,24 @@ function PriceBreakdown({ quote }: { quote: TaskQuote }) {
 }
 
 /**
- * Agent list component
+ * Agent list component - compact agent chips
  */
 function AgentList({ quote }: { quote: TaskQuote }) {
   return (
-    <div className="space-y-2">
-      <h4 className="text-[13px] font-medium text-white/50">Agents to be hired</h4>
-      <div className="flex flex-wrap gap-2">
-        {quote.agents.map((agent, i) => (
-          <span 
-            key={i}
-            className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-white/80"
-            style={{ 
-              background: 'rgba(255,255,255,0.06)', 
-              border: '1px solid rgba(255,255,255,0.1)' 
-            }}
-          >
-            {agent.name}
-          </span>
-        ))}
-      </div>
+    <div className="flex flex-wrap gap-1.5">
+      {quote.agents.map((agent, i) => (
+        <span
+          key={i}
+          className="px-2 py-1 rounded-md text-[10px] font-medium"
+          style={{
+            background: 'rgba(255,138,0,0.08)',
+            border: '1px solid rgba(255,138,0,0.15)',
+            color: 'rgba(255,255,255,0.6)'
+          }}
+        >
+          {agent.name}
+        </span>
+      ))}
     </div>
   );
 }
@@ -186,19 +270,24 @@ function ExpiryCountdown({ expiresAt }: { expiresAt: number }) {
  * Main Quote Modal component
  */
 export function QuoteModal({ isOpen, onClose, task, onExecutionStarted }: QuoteModalProps) {
+  // Direct wallet state - more reliable than hook state
+  const { isConnected: walletConnected } = useAccount();
+
   const {
     status,
     quote,
     error,
     txHash,
     executionId,
-    isConnected,
     formattedBalance,
     hasSufficientBalance,
     fetchQuote,
     executePayment,
     reset,
   } = useUSDCPayment();
+
+  // Use direct wallet state for connection check
+  const isConnected = walletConnected;
 
   // Fetch quote when modal opens
   useEffect(() => {
@@ -231,14 +320,14 @@ export function QuoteModal({ isOpen, onClose, task, onExecutionStarted }: QuoteM
     }
   };
 
-  const isLoading = ['fetching_quote', 'checking_allowance', 'approving', 'approval_pending', 
-                     'transferring', 'transfer_pending', 'verifying', 'executing'].includes(status);
+  const isLoading = ['fetching_quote', 'checking_allowance', 'approving', 'approval_pending',
+    'transferring', 'transfer_pending', 'verifying', 'executing'].includes(status);
   const canPay = status === 'quote_ready' && isConnected && hasSufficientBalance;
   const isExpired = quote && Date.now() > quote.expiresAt;
   const isComplete = status === 'complete';
-  
+
   const [fadeOut, setFadeOut] = useState(false);
-  
+
   // Fade out and close after complete
   useEffect(() => {
     if (isComplete) {
@@ -255,62 +344,74 @@ export function QuoteModal({ isOpen, onClose, task, onExecutionStarted }: QuoteM
   const showCloseButton = !['transferring', 'transfer_pending', 'verifying', 'executing', 'complete'].includes(status);
 
   return (
-    <div 
-      className={`fixed inset-0 z-50 flex items-end justify-end transition-opacity duration-500 ${fadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-      style={{ padding: '20px' }}
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-end transition-all duration-500 ${fadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+      style={{ padding: '24px' }}
     >
-      {/* Backdrop - subtle for side panel */}
-      <div 
-        className="absolute inset-0"
-        style={{ background: 'rgba(0,0,0,0.3)' }}
+      {/* Backdrop - frosted overlay */}
+      <div
+        className="absolute inset-0 glass-modal-backdrop animate-fade-in"
         onClick={showCloseButton ? handleClose : undefined}
       />
-      
-      {/* Modal - Right side panel */}
-      <div 
-        className="relative w-full max-w-sm max-h-[calc(100vh-40px)] overflow-y-auto rounded-2xl"
+
+      {/* Modal - Transparent frosted glass */}
+      <div
+        className="relative w-full max-w-[340px] max-h-[calc(100vh-48px)] overflow-hidden animate-modal-enter"
         style={{
-          background: 'linear-gradient(180deg, rgba(15,15,20,0.95) 0%, rgba(10,10,15,0.98) 100%)',
-          backdropFilter: 'blur(40px)',
-          WebkitBackdropFilter: 'blur(40px)',
+          background: 'rgba(15,15,20,0.75)',
+          backdropFilter: 'blur(32px) saturate(150%)',
+          WebkitBackdropFilter: 'blur(32px) saturate(150%)',
           border: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
+          borderRadius: '20px',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
         }}
       >
+
         {/* Header */}
-        <div 
-          className="flex items-center justify-between px-5 py-4"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        <div
+          className="relative flex items-center justify-between px-5 py-4"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
         >
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-gradient-to-r from-orange-400 to-pink-500" />
-            <h3 className="text-[15px] font-semibold text-white/90">Task Quote</h3>
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center"
+              style={{
+                background: 'rgba(255,138,0,0.15)',
+                border: '1px solid rgba(255,138,0,0.2)'
+              }}
+            >
+              <DollarSign className="w-3.5 h-3.5 text-orange-400" />
+            </div>
+            <h3 className="text-[13px] font-semibold text-white/90">Task Quote</h3>
           </div>
           {showCloseButton && (
             <button
               onClick={handleClose}
-              className="text-white/40 hover:text-white/80 transition-colors p-1 rounded-lg hover:bg-white/5"
+              className="text-white/30 hover:text-white/70 transition-all p-2 rounded-xl hover:bg-white/5"
             >
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
 
-        {/* Content */}
-        <div className="p-5 space-y-4">
-          {/* Task description */}
-          <div 
-            className="rounded-xl p-3"
-            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
-          >
-            <p className="text-[13px] text-white/60 line-clamp-3">{task}</p>
+        {/* Content - scrollable */}
+        <div className="relative p-4 space-y-3 overflow-y-auto max-h-[calc(100vh-200px)]">
+          {/* Task description - shows full on hover */}
+          <div className="group relative pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <p className="text-[11px] text-white/35 leading-relaxed line-clamp-2 group-hover:line-clamp-none transition-all cursor-default">
+              {task}
+            </p>
           </div>
 
           {/* Loading state */}
           {status === 'fetching_quote' && (
-            <div className="py-8 text-center">
-              <Loader2 className="w-6 h-6 animate-spin text-orange-400 mx-auto mb-3" />
-              <p className="text-[13px] text-white/50">Analyzing task and calculating price...</p>
+            <div className="py-12 text-center">
+              <div className="relative w-12 h-12 mx-auto mb-4">
+                <div className="absolute inset-0 rounded-full border-2 border-orange-400/20" />
+                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-orange-400 animate-spin" />
+                <div className="absolute inset-2 rounded-full bg-gradient-to-br from-orange-400/10 to-pink-500/10" />
+              </div>
+              <p className="text-[12px] text-white/40">Analyzing task...</p>
             </div>
           )}
 
@@ -319,7 +420,7 @@ export function QuoteModal({ isOpen, onClose, task, onExecutionStarted }: QuoteM
             <>
               {/* Expiry countdown */}
               {!isExpired && <ExpiryCountdown expiresAt={quote.expiresAt} />}
-              
+
               {/* Expired warning */}
               {isExpired && (
                 <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-red-400 text-sm">
@@ -334,49 +435,46 @@ export function QuoteModal({ isOpen, onClose, task, onExecutionStarted }: QuoteM
               <PriceBreakdown quote={quote} />
 
               {/* Wallet section */}
-              <div 
-                className="rounded-xl p-4"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+              <div
+                className="rounded-xl p-3"
+                style={{
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.05)'
+                }}
               >
                 {!isConnected ? (
-                  <div className="text-center">
-                    <p className="text-[13px] text-white/50 mb-3">Connect your wallet to pay</p>
+                  <div className="text-center py-1">
+                    <p className="text-[10px] text-white/40 mb-3">Connect wallet to pay</p>
                     <ConnectButton />
                   </div>
                 ) : (
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[11px] text-white/40">Your USDC Balance</p>
-                      <p className={`text-lg font-semibold ${hasSufficientBalance ? 'text-green-400' : 'text-red-400'}`}>
+                      <p className="text-[9px] text-white/30 mb-0.5">Your Balance</p>
+                      <p className={`text-[15px] font-bold ${hasSufficientBalance ? 'text-white/80' : 'text-red-400'}`}>
                         {formattedBalance}
                       </p>
                     </div>
                     {hasSufficientBalance ? (
-                      <CheckCircle className="w-5 h-5 text-green-400" />
+                      <CheckCircle className="w-4 h-4 text-orange-400/60" />
                     ) : (
-                      <div className="text-right">
-                        <AlertCircle className="w-5 h-5 text-red-400 ml-auto" />
-                        <p className="text-[11px] text-red-400">Insufficient balance</p>
-                      </div>
+                      <AlertCircle className="w-4 h-4 text-red-400" />
                     )}
                   </div>
                 )}
               </div>
 
-              {/* Transaction link - View on Base Sepolia */}
+              {/* Transaction link */}
               {txHash && (
-                <a 
+                <a
                   href={`https://sepolia.basescan.org/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all hover:scale-[1.02]"
-                  style={{ 
-                    background: 'rgba(59, 130, 246, 0.1)', 
-                    border: '1px solid rgba(59, 130, 246, 0.2)' 
-                  }}
+                  className="flex items-center justify-center gap-2 py-2 rounded-lg text-[11px] text-orange-400/70 hover:text-orange-400 transition-colors"
+                  style={{ background: 'rgba(255,138,0,0.05)', border: '1px solid rgba(255,138,0,0.1)' }}
                 >
-                  <ExternalLink className="w-4 h-4 text-blue-400" />
-                  <span className="text-[13px] font-medium text-blue-400">View on Base Sepolia</span>
+                  <ExternalLink className="w-3 h-3" />
+                  View Transaction
                 </a>
               )}
             </>
@@ -398,12 +496,12 @@ export function QuoteModal({ isOpen, onClose, task, onExecutionStarted }: QuoteM
         </div>
 
         {/* Footer */}
-        <div className="px-5 pb-5 pt-3">
-          <div className="flex gap-3">
+        <div className="relative px-4 pb-4 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+          <div className="flex gap-2">
             <button
               onClick={handleClose}
-              className="flex-1 py-2.5 px-4 rounded-xl text-[13px] font-medium text-white/60 transition-all hover:bg-white/10"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+              className="flex-1 py-2.5 px-3 rounded-xl text-[11px] font-medium text-white/40 transition-all hover:text-white/60 hover:bg-white/5"
+              style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}
               disabled={isLoading}
             >
               Cancel
@@ -411,23 +509,18 @@ export function QuoteModal({ isOpen, onClose, task, onExecutionStarted }: QuoteM
             <button
               onClick={handlePay}
               disabled={!canPay || isLoading || !!isExpired}
-              className="flex-1 py-2.5 px-4 rounded-xl text-[13px] font-medium transition-all flex items-center justify-center gap-2"
+              className="flex-[1.5] py-2.5 px-3 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1.5"
               style={{
-                background: canPay && !isLoading && !isExpired 
-                  ? 'linear-gradient(135deg, #ff8a00 0%, #ff3b6b 100%)' 
-                  : 'rgba(255,255,255,0.05)',
-                color: canPay && !isLoading && !isExpired ? 'white' : 'rgba(255,255,255,0.3)',
+                background: canPay && !isLoading && !isExpired ? '#ff8a00' : 'rgba(255,255,255,0.02)',
+                color: canPay && !isLoading && !isExpired ? 'white' : 'rgba(255,255,255,0.2)',
                 cursor: canPay && !isLoading && !isExpired ? 'pointer' : 'not-allowed',
-                border: '1px solid rgba(255,255,255,0.08)',
+                border: canPay && !isLoading && !isExpired ? 'none' : '1px solid rgba(255,255,255,0.05)',
               }}
             >
               {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                <>
-                  <Wallet className="w-4 h-4" />
-                  Pay {quote?.breakdown.totalFormatted || '...'}
-                </>
+                <>Pay {quote?.breakdown.totalFormatted || '...'}</>
               )}
             </button>
           </div>

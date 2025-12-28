@@ -6,11 +6,11 @@ import { AgentOption, DecisionLog } from '../types.js';
 import { logExecution } from '../decisions.js';
 import { openStream, recordTokens, settleStream, simulateTokenStream, PaymentStream } from '../x402/StreamingPayment.js';
 import { callGroq, streamGroq, formatMessagesForGroq, mapEndpointToGroqModel } from '../llm/groq.js';
-import { 
-    executeWithVerification as verifiableExecute, 
+import {
+    executeWithVerification as verifiableExecute,
     VerifiableExecutionResult,
     makeVerifiable,
-    getVerifiableStats 
+    getVerifiableStats
 } from '../verifiable/index.js';
 
 /**
@@ -122,6 +122,91 @@ function shouldUseGroq(): boolean {
     return true;
 }
 
+// ============================================================================
+// EXECUTION RESILIENCE UTILITIES
+// ============================================================================
+
+/** Sleep for specified milliseconds */
+function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/** Configuration for execution resilience */
+const EXECUTION_CONFIG = {
+    /** Maximum time for LLM streaming execution (60 seconds) */
+    timeoutMs: parseInt(process.env.AGENT_TIMEOUT_MS || '60000'),
+    /** Maximum retry attempts for LLM calls */
+    maxRetries: parseInt(process.env.AGENT_MAX_RETRIES || '3'),
+    /** Base delay for exponential backoff (1 second) */
+    retryBaseDelayMs: 1000,
+};
+
+/**
+ * Wrap an async generator with a timeout
+ * Throws TimeoutError if the generator doesn't complete within the timeout
+ */
+async function* withTimeout<T>(
+    generator: AsyncGenerator<T>,
+    timeoutMs: number,
+    operationName: string
+): AsyncGenerator<T> {
+    const timeout = Symbol('timeout');
+    let lastActivity = Date.now();
+
+    // Check for timeout on each iteration
+    const checkTimeout = () => {
+        if (Date.now() - lastActivity > timeoutMs) {
+            throw new Error(`Timeout: ${operationName} exceeded ${timeoutMs}ms`);
+        }
+    };
+
+    for await (const chunk of generator) {
+        checkTimeout();
+        lastActivity = Date.now();
+        yield chunk;
+    }
+}
+
+/**
+ * Call an async function with retry logic and exponential backoff
+ * Retries on transient errors (network, rate limiting)
+ */
+async function callWithRetry<T>(
+    fn: () => Promise<T>,
+    operationName: string,
+    maxRetries: number = EXECUTION_CONFIG.maxRetries
+): Promise<T> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error instanceof Error ? error : new Error(String(error));
+
+            // Check if error is retryable (network, rate limit, server errors)
+            const isRetryable =
+                lastError.message.includes('rate limit') ||
+                lastError.message.includes('timeout') ||
+                lastError.message.includes('ECONNRESET') ||
+                lastError.message.includes('ETIMEDOUT') ||
+                lastError.message.includes('503') ||
+                lastError.message.includes('502') ||
+                lastError.message.includes('429');
+
+            if (!isRetryable || attempt === maxRetries - 1) {
+                throw lastError;
+            }
+
+            const delay = EXECUTION_CONFIG.retryBaseDelayMs * Math.pow(2, attempt);
+            console.log(`   ⚠️ ${operationName} failed (attempt ${attempt + 1}/${maxRetries}), retrying in ${delay}ms...`);
+            await sleep(delay);
+        }
+    }
+
+    throw lastError || new Error('Retry failed');
+}
+
 /**
  * Base Agent Executor class
  * All specialized agents extend this
@@ -165,37 +250,45 @@ export abstract class AgentExecutor {
         try {
             // Build the prompt with context
             const fullPrompt = this.buildPrompt(task, context);
-            
+
             let outputContent: string;
             let tokensUsed: number;
 
             if (this.useGroq) {
-                // Use Groq API (cost-effective)
+                // Use Groq API (cost-effective) with retry logic
                 const model = mapEndpointToGroqModel(this.endpoint);
                 const messages = formatMessagesForGroq(
                     this.config.systemPrompt,
                     fullPrompt,
                     context.conversationHistory
                 );
-                
-                const response = await callGroq(messages, { model });
+
+                const response = await callWithRetry(
+                    () => callGroq(messages, { model }),
+                    `${this.name} Groq API call`
+                );
                 outputContent = response.choices[0].message.content;
                 tokensUsed = response.usage.total_tokens;
             } else {
-                // Fallback to Claude API
+                // Fallback to Claude API with retry logic
                 if (!this.client) {
                     throw new Error('No LLM configured. Set GROQ_API_KEY or ANTHROPIC_API_KEY.');
                 }
                 const model = this.getClaudeModel();
-                const response = await this.client.messages.create({
-                    model: model,
-                    max_tokens: 4096,
-                    system: this.config.systemPrompt,
-                    messages: [
-                        ...context.conversationHistory,
-                        { role: 'user', content: fullPrompt }
-                    ],
-                });
+                const client = this.client;
+
+                const response = await callWithRetry(
+                    () => client.messages.create({
+                        model: model,
+                        max_tokens: 4096,
+                        system: this.config.systemPrompt,
+                        messages: [
+                            ...context.conversationHistory,
+                            { role: 'user', content: fullPrompt }
+                        ],
+                    }),
+                    `${this.name} Claude API call`
+                );
 
                 outputContent = response.content
                     .filter(block => block.type === 'text')
@@ -270,18 +363,23 @@ export abstract class AgentExecutor {
     /**
      * Execute with x402 streaming payments
      * Opens a payment stream and records micro-payments as tokens are generated
+     * @param escrowTaskId - Optional escrow task ID for trustless payments via smart contract
      */
     async executeWithStreaming(
-        task: string, 
+        task: string,
         context: TaskContext,
         payerAgent: string,
         payerAddress: string,
-        payerWallet?: Wallet  // Optional: enables real on-chain micro-payments
+        payerWallet?: Wallet,  // Optional: enables real on-chain micro-payments
+        escrowTaskId?: string  // Optional: enables escrow-based streaming payments
     ): Promise<AgentResult> {
         console.log(`\n🤖 ${this.name} executing with STREAMING payments...`);
         console.log(`   Task: ${task.slice(0, 100)}...`);
+        if (escrowTaskId) {
+            console.log(`   📦 Escrow Mode: Payments via smart contract`);
+        }
 
-        // Open payment stream (pass wallet for real-time on-chain mode)
+        // Open payment stream (pass wallet for real-time on-chain mode, escrowTaskId for escrow mode)
         const stream = openStream(
             payerAgent,
             payerAddress,
@@ -290,7 +388,8 @@ export abstract class AgentExecutor {
             this.owner,
             this.price,
             10, // Batch size: micro-payment every 10 tokens
-            payerWallet  // Enables real on-chain micro-payments if STREAMING_ONCHAIN_MICROPAYMENTS=true
+            payerWallet,  // Enables real on-chain micro-payments if STREAMING_ONCHAIN_MICROPAYMENTS=true
+            escrowTaskId  // Enables escrow-based streaming payments
         );
 
         // Broadcast execution start
@@ -304,11 +403,11 @@ export abstract class AgentExecutor {
 
         try {
             const fullPrompt = this.buildPrompt(task, context);
-            
+
             // Use streaming API
             let outputContent = '';
             let totalTokens = 0;
-            
+
             if (this.useGroq) {
                 // Groq streaming
                 const model = mapEndpointToGroqModel(this.endpoint);
@@ -317,16 +416,23 @@ export abstract class AgentExecutor {
                     fullPrompt,
                     context.conversationHistory
                 );
-                
-                for await (const chunk of streamGroq(messages, { model })) {
+
+                // Wrap streaming with timeout protection
+                const timeoutStream = withTimeout(
+                    streamGroq(messages, { model }),
+                    EXECUTION_CONFIG.timeoutMs,
+                    `${this.name} LLM streaming`
+                );
+
+                for await (const chunk of timeoutStream) {
                     outputContent += chunk;
-                    
+
                     // Record micro-payment every batch
                     const newTokens = Math.ceil(chunk.length / 4);
                     recordTokens(stream.id, newTokens);
                     totalTokens += newTokens;
                 }
-                
+
                 console.log(`   ✅ ${this.name} completed (${totalTokens} tokens, ${stream.microPaymentCount} micro-payments)`);
             } else {
                 // Claude streaming
@@ -350,21 +456,21 @@ export abstract class AgentExecutor {
                         const delta = event.delta as { type: string; text?: string };
                         if (delta.type === 'text_delta' && delta.text) {
                             outputContent += delta.text;
-                        
+
                             // Estimate tokens (rough: 4 chars per token)
                             const newTokens = Math.ceil(delta.text.length / 4);
                             totalTokens += newTokens;
-                            
+
                             // Record tokens for micro-payments
                             recordTokens(stream.id, newTokens);
                         }
                     }
                 }
-                
+
                 // Get final message for accurate token count
                 const finalMessage = await streamResponse.finalMessage();
                 totalTokens = finalMessage.usage.output_tokens;
-                
+
                 console.log(`   ✅ ${this.name} completed (${totalTokens} tokens, ${stream.microPaymentCount} micro-payments)`);
             }
 
@@ -408,23 +514,26 @@ export abstract class AgentExecutor {
 
             // If Claude streaming fails, simulate for demo purposes
             console.log(`   📺 Falling back to simulated streaming...`);
-            
+
             try {
                 // Regular execution
                 const result = await this.execute(task, context);
-                
+
                 if (result.success) {
                     // Simulate token stream for visualization
                     const estimatedTokens = Math.ceil(result.output.length / 4);
                     await simulateTokenStream(stream.id, estimatedTokens, 3000);
                 }
-                
+
                 return {
                     ...result,
                     microPayments: stream.microPaymentCount,
                     streamId: stream.id,
                 };
             } catch (fallbackError) {
+                // Ensure stream is cleaned up on complete failure
+                await settleStream(stream.id, '', false);
+
                 broadcast({
                     type: 'error',
                     message: `${this.name} execution failed: ${errorMessage}`,
@@ -437,6 +546,8 @@ export abstract class AgentExecutor {
                     toolsUsed: [],
                     subAgentsHired: [],
                     error: errorMessage,
+                    microPayments: stream.microPaymentCount,
+                    streamId: stream.id,
                 };
             }
         }
@@ -494,7 +605,7 @@ export abstract class AgentExecutor {
                 // Use streaming execution to enable micropayments
                 const fullPrompt = this.buildPrompt(taskInput, context);
                 let outputContent = '';
-                
+
                 if (this.useGroq) {
                     const model = mapEndpointToGroqModel(this.endpoint);
                     const messages = formatMessagesForGroq(
@@ -502,7 +613,7 @@ export abstract class AgentExecutor {
                         fullPrompt,
                         context.conversationHistory
                     );
-                    
+
                     // Stream tokens and record micropayments
                     for await (const chunk of streamGroq(messages, { model })) {
                         outputContent += chunk;
@@ -537,7 +648,7 @@ export abstract class AgentExecutor {
                 } else {
                     throw new Error('No LLM configured. Set GROQ_API_KEY or ANTHROPIC_API_KEY.');
                 }
-                
+
                 return outputContent;
             };
 
@@ -557,7 +668,7 @@ export abstract class AgentExecutor {
             const verification = {
                 verified: verificationResult.success,
                 jobId: verificationResult.jobId,
-                proofHash: verificationResult.proof ? 
+                proofHash: verificationResult.proof ?
                     ethers.keccak256(
                         ethers.toUtf8Bytes(verificationResult.proof.proof)
                     ).slice(0, 18) + '...' : undefined,
@@ -728,7 +839,7 @@ export abstract class AgentExecutor {
             'report': 'writing',
             'summary': 'summarization',
             'summarization': 'summarization',
-            
+
             // DeFi Agent capabilities
             'safety': 'token_safety_analysis',
             'honeypot': 'token_safety_analysis',
@@ -820,7 +931,7 @@ export abstract class AgentExecutor {
         if (context.structuredResults?.has(capability)) {
             return context.structuredResults.get(capability)!.data;
         }
-        
+
         // Fallback: try to parse JSON from raw output
         const rawOutput = context.previousResults.get(capability);
         if (rawOutput) {
@@ -835,7 +946,7 @@ export abstract class AgentExecutor {
                 }
             } catch { /* Not JSON */ }
         }
-        
+
         return null;
     }
 }

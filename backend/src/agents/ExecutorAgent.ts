@@ -105,12 +105,12 @@ export class ExecutorAgent extends AgentExecutor {
     private executionEngine = getExecutionEngine();
     private slippageProtector = getSlippageProtector();
     private priceProvider = getPriceDataProvider();
-    
+
     constructor(tokenId?: number, walletPrivateKey?: string, owner?: string) {
         // Use dedicated Executor Agent wallet from config, or provided key, or generate random
         const privateKey = walletPrivateKey || config.executorAgentPrivateKey || Wallet.createRandom().privateKey;
         const wallet = new Wallet(privateKey);
-        
+
         const agentConfig = createAgentConfig(
             tokenId || 107, // tokenId from on-chain registry
             'Executor-Agent',
@@ -124,29 +124,29 @@ export class ExecutorAgent extends AgentExecutor {
             true, // COMPOSABLE: Can hire Safety, Router, Bridge, Yield agents
             2    // Max hire depth
         );
-        
+
         super(agentConfig);
-        
+
         console.log(`⚡ Executor Agent initialized`);
         console.log(`   Wallet: ${wallet.address}`);
         console.log(`   Token ID: ${tokenId || 107}`);
     }
-    
+
     /**
      * Execute strategy composition and planning
      */
     async execute(task: string, context: TaskContext): Promise<AgentResult> {
         const startTime = Date.now();
-        
+
         console.log(`\n⚡ [Executor-Agent] Processing: ${task.slice(0, 100)}...`);
-        
+
         // Broadcast agent status and execution start for UI sync
         broadcast({
             type: 'agent:status',
             id: 'executor-agent',
             status: 'working'
         });
-        
+
         broadcast({
             type: 'execution:start',
             agentId: 'executor-agent',
@@ -154,11 +154,11 @@ export class ExecutorAgent extends AgentExecutor {
             tool: 'autonomous_execution',
             input: task.slice(0, 200)
         });
-        
+
         try {
             // Parse the execution request
             const request = this.parseExecutionRequest(task, context);
-            
+
             if (!request) {
                 return {
                     success: false,
@@ -169,13 +169,13 @@ export class ExecutorAgent extends AgentExecutor {
                     error: 'Could not parse execution request',
                 };
             }
-            
+
             console.log(`[Executor-Agent] Strategy type: ${request.type}`);
             console.log(`[Executor-Agent] Chain: ${request.chain}`);
-            
+
             // Compose strategy
             const strategyResult = await this.strategyComposer.composeStrategy(request);
-            
+
             if (!strategyResult.success || !strategyResult.plan) {
                 return {
                     success: false,
@@ -186,18 +186,18 @@ export class ExecutorAgent extends AgentExecutor {
                     error: strategyResult.error,
                 };
             }
-            
+
             const plan = strategyResult.plan;
             console.log(`[Executor-Agent] Plan created: ${plan.steps.length} steps`);
-            
+
             // Validate plan
             const validation = await this.safetySimulator.validatePlan(plan);
-            
+
             // Generate report
             const report = this.generateExecutionReport(plan, validation);
-            
+
             const duration = Date.now() - startTime;
-            
+
             // Broadcast execution complete for UI sync
             broadcast({
                 type: 'execution:complete',
@@ -206,20 +206,20 @@ export class ExecutorAgent extends AgentExecutor {
                 tool: 'autonomous_execution',
                 output: report.slice(0, 500)
             });
-            
+
             broadcast({
                 type: 'agent:status',
                 id: 'executor-agent',
                 status: 'complete'
             });
-            
+
             // Broadcast subtask result for Results panel
             broadcast({
                 type: 'subtask:result',
                 agent: 'Executor-Agent',
                 output: report
             });
-            
+
             return {
                 success: true,
                 output: report,
@@ -234,13 +234,13 @@ export class ExecutorAgent extends AgentExecutor {
             };
         } catch (error) {
             console.error(`[Executor-Agent] Error:`, error);
-            
+
             broadcast({
                 type: 'agent:status',
                 id: 'executor-agent',
                 status: 'idle'
             });
-            
+
             return {
                 success: false,
                 output: `Execution planning failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -251,7 +251,7 @@ export class ExecutorAgent extends AgentExecutor {
             };
         }
     }
-    
+
     /**
      * Parse execution request from natural language
      */
@@ -260,20 +260,22 @@ export class ExecutorAgent extends AgentExecutor {
         context: TaskContext
     ): StrategyRequest | null {
         const lowerTask = task.toLowerCase();
-        
+
         // Default chain
         let chain = 'base';
-        if (lowerTask.includes('ethereum') || lowerTask.includes('mainnet')) {
+        if (lowerTask.includes('sepolia') || lowerTask.includes('testnet')) {
+            chain = 'base_sepolia';
+        } else if (lowerTask.includes('ethereum') || lowerTask.includes('mainnet')) {
             chain = 'ethereum';
         } else if (lowerTask.includes('arbitrum')) {
             chain = 'arbitrum';
         } else if (lowerTask.includes('optimism')) {
             chain = 'optimism';
         }
-        
+
         // Parse strategy type
         let type: StrategyType = 'custom';
-        
+
         if (lowerTask.includes('swap') || lowerTask.includes('exchange') || lowerTask.includes('convert')) {
             type = 'swap';
         } else if (lowerTask.includes('deposit') || lowerTask.includes('supply') || lowerTask.includes('lend')) {
@@ -291,12 +293,12 @@ export class ExecutorAgent extends AgentExecutor {
         } else if (lowerTask.includes('bridge') || lowerTask.includes('move')) {
             type = 'bridge_and_deposit';
         }
-        
+
         // Parse tokens
         const tokens = ['WETH', 'ETH', 'USDC', 'USDT', 'DAI', 'cbETH'];
         let tokenIn: string | undefined;
         let tokenOut: string | undefined;
-        
+
         for (const token of tokens) {
             if (lowerTask.includes(token.toLowerCase())) {
                 if (!tokenIn) {
@@ -306,7 +308,7 @@ export class ExecutorAgent extends AgentExecutor {
                 }
             }
         }
-        
+
         // Parse amount
         let amount: bigint | undefined;
         const amountMatch = task.match(/(\d+(?:\.\d+)?)\s*(?:ETH|WETH|USDC|USDT|DAI)?/i);
@@ -319,7 +321,7 @@ export class ExecutorAgent extends AgentExecutor {
                 amount = parseEther(value.toString());
             }
         }
-        
+
         // Parse target chain for bridges
         let targetChain: string | undefined;
         const chains = ['ethereum', 'arbitrum', 'optimism', 'base', 'polygon'];
@@ -329,15 +331,15 @@ export class ExecutorAgent extends AgentExecutor {
                 break;
             }
         }
-        
+
         // Parse protocol
         let protocol: string | undefined;
         if (lowerTask.includes('aave')) protocol = 'aave_v3';
         else if (lowerTask.includes('compound')) protocol = 'compound_v3';
-        
+
         // Get user address from wallet manager or context
         const userAddress = context.walletAddress || this.walletManager.getAddressOrPlaceholder();
-        
+
         return {
             type,
             intent: task,
@@ -350,7 +352,7 @@ export class ExecutorAgent extends AgentExecutor {
             targetChain,
         };
     }
-    
+
     /**
      * Check if task mentions another chain
      */
@@ -358,7 +360,7 @@ export class ExecutorAgent extends AgentExecutor {
         const chains = ['ethereum', 'arbitrum', 'optimism', 'base', 'polygon'];
         return chains.some(c => c !== currentChain && task.includes(c));
     }
-    
+
     /**
      * Generate execution report
      */
@@ -367,13 +369,13 @@ export class ExecutorAgent extends AgentExecutor {
         validation: { valid: boolean; issues: any[]; canProceed: boolean }
     ): string {
         const lines: string[] = [];
-        
+
         // Header
         lines.push('═══════════════════════════════════════════════════════');
         lines.push('⚡ EXECUTION PLAN');
         lines.push('═══════════════════════════════════════════════════════');
         lines.push('');
-        
+
         // Plan Summary
         lines.push(`## ${plan.name}`);
         lines.push(`  Chain: ${plan.chain}`);
@@ -382,48 +384,48 @@ export class ExecutorAgent extends AgentExecutor {
         lines.push(`  Est. Cost: ~$${plan.totalEstimatedCostUSD.toFixed(2)}`);
         lines.push(`  Est. Time: ~${plan.estimatedDurationMinutes} minutes`);
         lines.push('');
-        
+
         // Execution Steps
         lines.push('═══════════════════════════════════════════════════════');
         lines.push('📋 EXECUTION STEPS');
         lines.push('═══════════════════════════════════════════════════════');
         lines.push('');
-        
+
         for (let i = 0; i < plan.steps.length; i++) {
             const step = plan.steps[i];
             const stepNum = i + 1;
             const icon = this.getStepIcon(step.type);
-            
+
             lines.push(`### Step ${stepNum}: ${icon} ${step.description}`);
             lines.push(`  Type: ${step.type}`);
             lines.push(`  Gas: ~${step.estimatedGas.toLocaleString()} units`);
-            
+
             // Step-specific details
             const details = this.getStepDetails(step);
             for (const detail of details) {
                 lines.push(`  ${detail}`);
             }
-            
+
             if (step.dependsOn.length > 0) {
                 lines.push(`  Depends on: Step ${plan.steps.findIndex(s => s.id === step.dependsOn[0]) + 1}`);
             }
             lines.push('');
         }
-        
+
         // Validation Results
         lines.push('═══════════════════════════════════════════════════════');
         lines.push('🔒 SAFETY VALIDATION');
         lines.push('═══════════════════════════════════════════════════════');
         lines.push('');
-        
+
         if (validation.valid) {
             lines.push('  ✅ Plan validated successfully');
             lines.push('  ✅ All steps can be executed');
         } else {
             lines.push('  ⚠️ Validation issues found:');
             for (const issue of validation.issues) {
-                const icon = issue.severity === 'error' ? '❌' : 
-                             issue.severity === 'warning' ? '⚠️' : 'ℹ️';
+                const icon = issue.severity === 'error' ? '❌' :
+                    issue.severity === 'warning' ? '⚠️' : 'ℹ️';
                 lines.push(`  ${icon} ${issue.message}`);
                 if (issue.suggestion) {
                     lines.push(`     → ${issue.suggestion}`);
@@ -431,7 +433,7 @@ export class ExecutorAgent extends AgentExecutor {
             }
         }
         lines.push('');
-        
+
         // Ready Status
         lines.push('═══════════════════════════════════════════════════════');
         if (validation.canProceed) {
@@ -447,30 +449,30 @@ export class ExecutorAgent extends AgentExecutor {
             lines.push('Please address the validation issues above.');
         }
         lines.push('═══════════════════════════════════════════════════════');
-        
+
         // Transaction Preview
         lines.push('');
         lines.push('## Transaction Preview');
         lines.push('');
         lines.push('Each step generates a transaction that requires user signature:');
         lines.push('');
-        
+
         for (let i = 0; i < Math.min(plan.steps.length, 3); i++) {
             const step = plan.steps[i];
             lines.push(`  Step ${i + 1}: ${step.type.toUpperCase()}`);
             lines.push(`    → Contract interaction with gas limit ~${step.estimatedGas}`);
         }
-        
+
         if (plan.steps.length > 3) {
             lines.push(`  ... and ${plan.steps.length - 3} more step(s)`);
         }
-        
+
         lines.push('');
         lines.push('═══════════════════════════════════════════════════════');
-        
+
         return lines.join('\n');
     }
-    
+
     /**
      * Get icon for step type
      */
@@ -488,14 +490,14 @@ export class ExecutorAgent extends AgentExecutor {
             default: return '📝';
         }
     }
-    
+
     /**
      * Get step-specific details
      */
     private getStepDetails(step: ExecutionStep): string[] {
         const details: string[] = [];
         const params = step.params as any;
-        
+
         switch (step.type) {
             case 'approve':
                 details.push(`Token: ${params.tokenSymbol}`);
@@ -526,10 +528,10 @@ export class ExecutorAgent extends AgentExecutor {
                 details.push(`Reason: ${params.description}`);
                 break;
         }
-        
+
         return details;
     }
-    
+
     /**
      * Get help text
      */
@@ -579,7 +581,7 @@ export class ExecutorAgent extends AgentExecutor {
 ═══════════════════════════════════════════════════════
 `;
     }
-    
+
     /**
      * Direct API: Compose and validate strategy
      */
@@ -589,13 +591,13 @@ export class ExecutorAgent extends AgentExecutor {
         error?: string;
     }> {
         const result = await this.strategyComposer.composeStrategy(request);
-        
+
         if (!result.success || !result.plan) {
             return { plan: null, validation: null, error: result.error };
         }
-        
+
         const validation = await this.safetySimulator.validatePlan(result.plan);
-        
+
         return { plan: result.plan, validation };
     }
 
@@ -628,7 +630,7 @@ export class ExecutorAgent extends AgentExecutor {
 
         this.executionEngine.setServerWallet(key, plan.chain);
         const signer = this.executionEngine.createServerSigner(plan.chain);
-        
+
         console.log(`[Executor-Agent] Starting autonomous execution: ${plan.name}`);
         broadcast({
             type: 'execution:start',
@@ -665,7 +667,7 @@ export class ExecutorAgent extends AgentExecutor {
         }
 
         const signer = this.executionEngine.createFrontendSigner();
-        
+
         console.log(`[Executor-Agent] Starting frontend-signed execution: ${plan.name}`);
         broadcast({
             type: 'execution:start',
@@ -737,7 +739,7 @@ export class ExecutorAgent extends AgentExecutor {
     ): Promise<any> {
         const tokenInAddress = getTokenAddress(chain, tokenIn);
         const tokenOutAddress = getTokenAddress(chain, tokenOut);
-        
+
         if (!tokenInAddress || !tokenOutAddress) {
             return { error: 'Invalid token symbols' };
         }
@@ -807,8 +809,8 @@ export class ExecutorAgent extends AgentExecutor {
      * Get connected wallet address
      */
     getConnectedWallet(): string | null {
-        return this.walletManager.isConnected() 
-            ? this.walletManager.getAddress() 
+        return this.walletManager.isConnected()
+            ? this.walletManager.getAddress()
             : null;
     }
 
@@ -820,7 +822,7 @@ export class ExecutorAgent extends AgentExecutor {
             console.log('[Executor-Agent] No wallet connected');
             return null;
         }
-        
+
         try {
             return await this.walletManager.getBalances(chain);
         } catch (error) {
@@ -838,16 +840,16 @@ export class ExecutorAgent extends AgentExecutor {
         amount: bigint
     ): Promise<{ sufficient: boolean; balance: string; required: string }> {
         if (!this.walletManager.isConnected()) {
-            return { 
-                sufficient: false, 
-                balance: '0', 
-                required: amount.toString() 
+            return {
+                sufficient: false,
+                balance: '0',
+                required: amount.toString()
             };
         }
 
         const result = await this.walletManager.hasSufficientBalance(chain, tokenSymbol, amount);
         const decimals = ['USDC', 'USDT'].includes(tokenSymbol) ? 6 : 18;
-        
+
         return {
             sufficient: result.sufficient,
             balance: formatUnits(result.balance, decimals),

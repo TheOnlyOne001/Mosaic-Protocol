@@ -21,10 +21,10 @@ export type { WalletConnection, WalletBalances, TokenBalance, TransactionToSign 
 
 // Core - Execution Engine (NEW)
 export { getExecutionEngine, ExecutionEngine } from './core/executionEngine.js';
-export type { 
-    ExecutionState, 
-    ExecutionResult, 
-    SignatureRequest, 
+export type {
+    ExecutionState,
+    ExecutionResult,
+    SignatureRequest,
     ExecutionConfig,
     SignerFunction,
     TransactionToSign as ExecutionTransactionToSign,
@@ -32,9 +32,9 @@ export type {
 
 // Core - Slippage Protection (NEW)
 export { getSlippageProtector, SlippageProtector } from './core/slippageProtector.js';
-export type { 
-    SlippageConfig, 
-    SlippageAnalysis, 
+export type {
+    SlippageConfig,
+    SlippageAnalysis,
     SlippageWarning,
     MEVRiskAssessment,
     BridgeQuote,
@@ -42,9 +42,12 @@ export type {
 
 // Core - Price Data Provider (NEW)
 export { getPriceDataProvider, PriceDataProvider } from './core/priceDataProvider.js';
-export type { 
-    PriceData, 
-    GasData, 
-    PoolLiquidity, 
+export type {
+    PriceData,
+    GasData,
+    PoolLiquidity,
     SwapQuote,
 } from './core/priceDataProvider.js';
+
+// Core - Nonce Manager (Phase 2: Reliability)
+export { getNonceManager, NonceManager } from './core/nonceManager.js';

@@ -13,7 +13,7 @@ import { ERC20_ABI } from '@/lib/contracts';
  */
 export function ConnectWalletButton() {
   const { address, isConnected, chainId } = useAccount();
-  
+
   // Get USDC balance
   const usdcAddress = chainId ? getUSDCAddress(chainId) : undefined;
   const { data: usdcBalance } = useReadContract({
@@ -26,7 +26,7 @@ export function ConnectWalletButton() {
     },
   });
 
-  const formattedUSDC = usdcBalance 
+  const formattedUSDC = usdcBalance
     ? `$${parseFloat(formatUnits(usdcBalance, USDC_DECIMALS)).toFixed(2)}`
     : '$0.00';
 
@@ -64,8 +64,11 @@ export function ConnectWalletButton() {
                 return (
                   <button
                     onClick={openConnectModal}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 
-                              text-white rounded-lg transition-colors font-medium"
+                    className="flex items-center gap-2 px-4 py-2 text-white rounded-xl transition-all font-medium hover-lift"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(168,85,247,0.9) 0%, rgba(139,92,246,0.9) 100%)',
+                      boxShadow: '0 4px 20px rgba(139,92,246,0.3)',
+                    }}
                   >
                     <Wallet className="w-4 h-4" />
                     Connect Wallet
@@ -77,8 +80,11 @@ export function ConnectWalletButton() {
                 return (
                   <button
                     onClick={openChainModal}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 
-                              text-white rounded-lg transition-colors font-medium"
+                    className="flex items-center gap-2 px-4 py-2 text-white rounded-xl transition-all font-medium"
+                    style={{
+                      background: 'rgba(251,191,36,0.2)',
+                      border: '1px solid rgba(251,191,36,0.3)',
+                    }}
                   >
                     Wrong Network
                     <ChevronDown className="w-4 h-4" />
@@ -89,16 +95,25 @@ export function ConnectWalletButton() {
               return (
                 <div className="flex items-center gap-2">
                   {/* USDC Balance */}
-                  <div className="hidden sm:flex items-center gap-1 px-3 py-2 bg-gray-800 rounded-lg">
-                    <span className="text-gray-400 text-sm">USDC:</span>
-                    <span className="text-green-400 font-medium text-sm">{formattedUSDC}</span>
+                  <div
+                    className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl"
+                    style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    <span className="text-white/50 text-sm">USDC:</span>
+                    <span className="text-cyan-400 font-medium text-sm">{formattedUSDC}</span>
                   </div>
 
                   {/* Chain selector */}
                   <button
                     onClick={openChainModal}
-                    className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-gray-700 
-                              rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all hover-lift"
+                    style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                    }}
                   >
                     {chain.hasIcon && (
                       <div
@@ -119,21 +134,24 @@ export function ConnectWalletButton() {
                         )}
                       </div>
                     )}
-                    <span className="hidden sm:inline text-sm text-gray-300">{chain.name}</span>
-                    <ChevronDown className="w-3 h-3 text-gray-400" />
+                    <span className="hidden sm:inline text-sm text-white/70">{chain.name}</span>
+                    <ChevronDown className="w-3 h-3 text-white/40" />
                   </button>
 
                   {/* Account button */}
                   <button
                     onClick={openAccountModal}
-                    className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 
-                              rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all hover-lift"
+                    style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                    }}
                   >
                     <div className="w-5 h-5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500" />
                     <span className="text-sm text-white font-medium">
                       {account.displayName}
                     </span>
-                    <ChevronDown className="w-3 h-3 text-gray-400" />
+                    <ChevronDown className="w-3 h-3 text-white/40" />
                   </button>
                 </div>
               );

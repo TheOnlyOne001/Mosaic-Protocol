@@ -1,8 +1,9 @@
 ﻿'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowRight, Zap, Shield, Bot, Sparkles, ChevronRight, Play, Send, Loader2, ArrowLeft, Wifi, WifiOff, Search, Award, DollarSign, X, BookOpen, Settings } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useAccount } from 'wagmi';
+import { ArrowRight, Zap, Shield, Bot, Sparkles, ChevronRight, Play, Send, Loader2, ArrowLeft, Wifi, WifiOff, Search, Award, DollarSign, X, BookOpen, Settings, ExternalLink, Copy, Check } from 'lucide-react';
 import { useSocket } from '@/hooks/useSocket';
 import { ConnectWalletButton } from '@/components/ConnectWalletButton';
 import { QuoteModal } from '@/components/QuoteModal';
@@ -30,7 +31,7 @@ function useTypewriter(texts: string[], typingSpeed = 80, deletingSpeed = 40, pa
 
   useEffect(() => {
     const currentText = texts[textIndex];
-    
+
     const timeout = setTimeout(() => {
       if (!isDeleting) {
         if (displayText.length < currentText.length) {
@@ -89,12 +90,13 @@ export default function LandingPage() {
   const [activeAgents, setActiveAgents] = useState<string[]>([]);
   const [activities, setActivities] = useState<DecisionLog[]>([]);
   const activityScrollRef = useRef<HTMLDivElement>(null);
-  
+
   // Results state
   const [result, setResult] = useState<string | null>(null);
   const [totalCost, setTotalCost] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
-  
+  const [copied, setCopied] = useState(false);
+
   // ZK Proof verification state
   const [zkProof, setZkProof] = useState<{
     status: 'idle' | 'committing' | 'executing' | 'proving' | 'verifying' | 'verified' | 'failed';
@@ -106,7 +108,7 @@ export default function LandingPage() {
     timeMs?: number;
     classification?: string;
   }>({ status: 'idle' });
-  
+
   // x402 Streaming Payment state
   const [streamingPayments, setStreamingPayments] = useState<{
     active: boolean;
@@ -117,20 +119,25 @@ export default function LandingPage() {
     totalPaid: string;
     ratePerToken?: string;
     globalCount: number;
-  }>({ active: false, microPaymentCount: 0, totalPaid: '0', globalCount: 0 });
-  
+    realTimeMode?: boolean;
+    onChainTxs: { txHash: string; amount: string; blockNumber: number }[];
+  }>({ active: false, microPaymentCount: 0, totalPaid: '0', globalCount: 0, onChainTxs: [] });
+
   // Quote modal state
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [pendingTask, setPendingTask] = useState('');
-  
+
   // Docs modal state
   const [showDocsModal, setShowDocsModal] = useState(false);
-  
+
   // Settings modal state
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  
-  const { isConnected, subscribe } = useSocket();
-  
+
+  const { isConnected: socketConnected, subscribe } = useSocket();
+
+  // Direct wallet state - prevents sync issues
+  const { isConnected: walletConnected, address: walletAddress } = useAccount();
+
   // Auto-scroll activity feed when new activities arrive
   useEffect(() => {
     if (activityScrollRef.current) {
@@ -140,10 +147,10 @@ export default function LandingPage() {
       });
     }
   }, [activities.length]);
-  
+
   const typewriterText = useTypewriter([
     'Analyze DeFi Protocols',
-    'Research Token Safety', 
+    'Research Token Safety',
     'Generate Reports'
   ], 90, 45, 2200);
 
@@ -225,7 +232,7 @@ export default function LandingPage() {
         case 'decision:log':
           // Coordinator is always active during decision
           setActiveAgents(prev => prev.includes('coordinator') ? prev : ['coordinator', ...prev]);
-          
+
           // Extract capability from decision - can be on decision.capability or decision.selectedAgent.capability
           const capability = event.decision?.capability || event.decision?.selectedAgent?.capability;
           if (capability) {
@@ -235,13 +242,23 @@ export default function LandingPage() {
               setActiveAgents(prev => prev.includes(agentId) ? prev : [...prev, agentId]);
             }
           }
-          
-          // Add to activities
+
+          // Add to activities (ensure unique IDs to prevent duplicate key errors)
           if (event.decision) {
-            setActivities(prev => [...prev, event.decision]);
+            setActivities(prev => {
+              const newDecision = {
+                ...event.decision,
+                id: event.decision.id || `dec_${Date.now()}_${Math.random().toString(36).slice(2, 9)}_${prev.length}`
+              };
+              // Prevent duplicates by checking if ID already exists
+              if (prev.some(a => a.id === newDecision.id)) {
+                return prev;
+              }
+              return [...prev, newDecision];
+            });
           }
           break;
-        
+
         // ZK Verification Events
         case 'verification:start':
           setZkProof({ status: 'committing', agentName: event.agentName });
@@ -265,8 +282,8 @@ export default function LandingPage() {
           setZkProof(prev => ({ ...prev, status: event.valid ? 'verified' : 'failed', classification: event.classification }));
           break;
         case 'verification:complete':
-          setZkProof(prev => ({ 
-            ...prev, 
+          setZkProof(prev => ({
+            ...prev,
             status: event.verified ? 'verified' : 'failed',
             jobId: event.jobId,
             timeMs: event.timeMs
@@ -275,7 +292,7 @@ export default function LandingPage() {
         case 'verification:error':
           setZkProof(prev => ({ ...prev, status: 'failed' }));
           break;
-        
+
         // x402 Streaming Payment Events
         case 'stream:open':
           setStreamingPayments({
@@ -287,17 +304,39 @@ export default function LandingPage() {
             totalPaid: '0',
             ratePerToken: event.ratePerToken,
             globalCount: 0,
+            realTimeMode: event.realTimeMode,
+            onChainTxs: [],
           });
           break;
         case 'stream:micro':
+          // Debounce rapid updates to prevent jitter
+          setStreamingPayments(prev => {
+            const newCount = event.globalCount || prev.globalCount + 1;
+            // Only update if significant change (every 3 micropayments or agent changed)
+            if (newCount - prev.globalCount < 3 && event.toAgent === prev.toAgent) {
+              return { ...prev, globalCount: newCount };
+            }
+            return {
+              ...prev,
+              active: true,
+              fromAgent: event.fromAgent,
+              toAgent: event.toAgent,
+              microPaymentCount: event.microPaymentNumber || prev.microPaymentCount + 1,
+              totalPaid: event.cumulative || prev.totalPaid,
+              globalCount: newCount,
+              realTimeMode: event.realTimeMode ?? prev.realTimeMode,
+            };
+          });
+          break;
+        case 'stream:onchain':
+          // Real on-chain micropayment confirmed
           setStreamingPayments(prev => ({
             ...prev,
-            active: true,
-            fromAgent: event.fromAgent,
-            toAgent: event.toAgent,
-            microPaymentCount: event.microPaymentNumber || prev.microPaymentCount + 1,
-            totalPaid: event.cumulative || prev.totalPaid,
-            globalCount: event.globalCount || prev.globalCount + 1,
+            onChainTxs: [...prev.onChainTxs, {
+              txHash: event.txHash,
+              amount: event.amount,
+              blockNumber: event.blockNumber,
+            }],
           }));
           break;
         case 'stream:settle':
@@ -307,6 +346,7 @@ export default function LandingPage() {
             microPaymentCount: event.totalMicroPayments || prev.microPaymentCount,
             totalPaid: event.totalPaid || prev.totalPaid,
             globalCount: event.globalCount || prev.globalCount,
+            realTimeMode: event.realTimeMode ?? prev.realTimeMode,
           }));
           break;
       }
@@ -361,7 +401,7 @@ export default function LandingPage() {
     setActivities([]);
     setTask(''); // Ensure search bar is clear
     setZkProof({ status: 'idle' }); // Reset ZK proof state
-    setStreamingPayments({ active: false, microPaymentCount: 0, totalPaid: '0', globalCount: 0 }); // Reset x402 state
+    setStreamingPayments({ active: false, microPaymentCount: 0, totalPaid: '0', globalCount: 0, onChainTxs: [] }); // Reset x402 state
     setShowResults(false);
     setResult(null);
   }, []);
@@ -369,18 +409,18 @@ export default function LandingPage() {
   // Run demo
   const handleRunDemo = useCallback(async () => {
     if (isRunning) return;
-    
+
     // Reset all state for fresh demo
     setIsRunning(true);
     setStatusMessage('Starting demo...');
     setActiveAgents(['coordinator']); // Start with coordinator active
     setActivities([]); // Clear previous activities
     setZkProof({ status: 'idle' }); // Reset ZK proof state
-    setStreamingPayments({ active: false, microPaymentCount: 0, totalPaid: '0', globalCount: 0 }); // Reset x402 state
+    setStreamingPayments({ active: false, microPaymentCount: 0, totalPaid: '0', globalCount: 0, onChainTxs: [] }); // Reset x402 state
     setShowResults(false);
     setResult(null);
     setTotalCost(null);
-    
+
     try {
       await fetch(`${getApiUrl()}/api/demo/start`, { method: 'POST' });
       setStatusMessage('Demo running...');
@@ -401,7 +441,7 @@ export default function LandingPage() {
 
       {/* Left Gradient Overlay - Only visible on landing view */}
       {view === 'landing' && (
-        <div 
+        <div
           className="fixed inset-0 z-[5] pointer-events-none transition-opacity duration-500"
           style={{
             background: 'linear-gradient(90deg, rgba(6,6,8,0.94) 0%, rgba(6,6,8,0.82) 20%, rgba(6,6,8,0.5) 45%, transparent 65%)',
@@ -411,7 +451,7 @@ export default function LandingPage() {
 
       {/* Content Layer */}
       <div className="relative z-10 min-h-screen pointer-events-none">
-        
+
         {/* Top Nav - Always visible */}
         <header className="absolute top-0 left-0 right-0 pointer-events-auto" style={{ padding: '20px 48px' }}>
           <div className="flex items-center justify-between">
@@ -435,7 +475,7 @@ export default function LandingPage() {
                 </>
               )}
             </div>
-            
+
             {/* Right side header items */}
             <div className="flex items-center gap-3">
               {/* Settings Button */}
@@ -455,19 +495,19 @@ export default function LandingPage() {
                 <span className="text-sm font-medium">Docs</span>
               </button>
               {/* Connection indicator */}
-              <div 
+              <div
                 className="flex items-center gap-2 px-3 py-1.5 rounded-full"
                 style={{
                   background: 'rgba(255,255,255,0.04)',
                   border: '1px solid rgba(255,255,255,0.08)',
                 }}
               >
-                {isConnected ? (
+                {socketConnected ? (
                   <Wifi className="w-3.5 h-3.5 text-emerald-400" />
                 ) : (
                   <WifiOff className="w-3.5 h-3.5 text-red-400" />
                 )}
-                <span className="text-[11px] text-white/50">{isConnected ? 'Live' : 'Offline'}</span>
+                <span className="text-[11px] text-white/50">{socketConnected ? 'Live' : 'Offline'}</span>
               </div>
 
               {/* Wallet Connector - Premium styled */}
@@ -494,23 +534,22 @@ export default function LandingPage() {
         </header>
 
         {/* LANDING VIEW */}
-        <div 
-          className={`absolute inset-0 transition-all duration-500 ${
-            view === 'landing' && !isTransitioning ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
+        <div
+          className={`absolute inset-0 transition-all duration-500 ${view === 'landing' && !isTransitioning ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
         >
           {/* Left Side - Hero Content */}
-          <div 
+          <div
             className="absolute pointer-events-auto"
-            style={{ 
-              left: '48px', 
-              top: '50%', 
+            style={{
+              left: '48px',
+              top: '50%',
               transform: 'translateY(-50%)',
               maxWidth: '460px',
             }}
           >
             {/* Badge */}
-            <div 
+            <div
               className="inline-flex items-center gap-2 rounded-full mb-6"
               style={{
                 background: 'rgba(255,255,255,0.04)',
@@ -523,16 +562,16 @@ export default function LandingPage() {
             </div>
 
             {/* Main Heading */}
-            <h1 
+            <h1
               className="font-bold text-white"
-              style={{ 
+              style={{
                 fontSize: '42px',
                 lineHeight: '1.1',
                 letterSpacing: '-0.02em',
                 marginBottom: '16px',
               }}
             >
-              Mosaic Protocol<br /><span 
+              Mosaic Protocol<br /><span
                 style={{
                   background: 'linear-gradient(90deg, #ff9a57 0%, #ff5a7a 100%)',
                   WebkitBackgroundClip: 'text',
@@ -542,7 +581,7 @@ export default function LandingPage() {
             </h1>
 
             {/* Subtitle */}
-            <p 
+            <p
               className="text-white/50 leading-relaxed"
               style={{ fontSize: '15px', marginBottom: '28px', maxWidth: '380px' }}
             >
@@ -588,7 +627,7 @@ export default function LandingPage() {
           </div>
 
           {/* Bottom - Feature Pills */}
-          <div 
+          <div
             className="absolute flex flex-wrap gap-2 pointer-events-auto"
             style={{ bottom: '28px', left: '48px', maxWidth: '420px' }}
           >
@@ -613,11 +652,11 @@ export default function LandingPage() {
           </div>
 
           {/* Bottom Right - Powered By */}
-          <div 
+          <div
             className="absolute pointer-events-auto"
             style={{ bottom: '28px', right: '48px' }}
           >
-            <div 
+            <div
               className="flex items-center gap-3 rounded-full"
               style={{
                 background: 'rgba(255,255,255,0.025)',
@@ -630,7 +669,7 @@ export default function LandingPage() {
                 {['Base Sepolia', 'ERC-8004 Registry', 'EZKL ZK Proofs', 'x402 Payments'].map((name, i) => (
                   <span key={name} className="flex items-center gap-2">
                     <span className="text-white/55 text-[11px] font-medium">{name}</span>
-                    {i < 2 && <span className="text-white/10">•</span>}
+                    {i < 3 && <span className="text-white/10">•</span>}
                   </span>
                 ))}
               </div>
@@ -650,15 +689,14 @@ export default function LandingPage() {
         </div>
 
         {/* TASK VIEW */}
-        <div 
-          className={`absolute inset-0 transition-all duration-500 ${
-            view === 'task' && !isTransitioning ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
+        <div
+          className={`absolute inset-0 transition-all duration-500 ${view === 'task' && !isTransitioning ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
         >
           {/* Activity Feed - Left Side - Premium Design */}
           {isRunning && activities.length > 0 && (
-            <div 
-              className="absolute left-6 top-20 bottom-32 w-80 pointer-events-auto overflow-hidden"
+            <div
+              className="absolute left-6 top-20 bottom-32 w-80 pointer-events-auto overflow-hidden animate-slide-left"
               style={{
                 background: 'linear-gradient(180deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.25) 100%)',
                 backdropFilter: 'blur(24px)',
@@ -669,9 +707,9 @@ export default function LandingPage() {
               }}
             >
               {/* Header - Premium */}
-              <div 
+              <div
                 className="flex items-center justify-between px-5 py-4"
-                style={{ 
+                style={{
                   borderBottom: '1px solid rgba(255,255,255,0.06)',
                   background: 'rgba(255,255,255,0.02)'
                 }}
@@ -682,12 +720,12 @@ export default function LandingPage() {
                 </div>
                 <span className="text-[11px] text-white/40 font-mono">{activities.length}</span>
               </div>
-              
+
               {/* Activity List - Auto scroll */}
-              <div 
+              <div
                 ref={activityScrollRef}
                 className="overflow-y-auto px-3 py-3"
-                style={{ 
+                style={{
                   maxHeight: 'calc(100% - 56px)',
                   scrollbarWidth: 'none',
                   msOverflowStyle: 'none',
@@ -705,27 +743,27 @@ export default function LandingPage() {
                   {activities.slice(-15).map((activity, i, arr) => {
                     const isLatest = i === arr.length - 1;
                     return (
-                      <div 
+                      <div
                         key={activity.id || i}
                         className="activity-item flex items-start gap-3 py-2.5 px-3 rounded-xl transition-all duration-300"
                         style={{
-                          background: isLatest 
-                            ? 'linear-gradient(135deg, rgba(255,138,0,0.12) 0%, rgba(255,59,107,0.08) 100%)' 
+                          background: isLatest
+                            ? 'linear-gradient(135deg, rgba(255,138,0,0.12) 0%, rgba(255,59,107,0.08) 100%)'
                             : 'rgba(255,255,255,0.02)',
-                          border: isLatest 
-                            ? '1px solid rgba(255,138,0,0.25)' 
+                          border: isLatest
+                            ? '1px solid rgba(255,138,0,0.25)'
                             : '1px solid transparent',
                         }}
                       >
                         {/* Icon with glow */}
-                        <div 
+                        <div
                           className="mt-0.5 p-1.5 rounded-lg"
                           style={{
                             background: activity.type === 'discovery' ? 'rgba(59,130,246,0.15)' :
-                                       activity.type === 'selection' ? 'rgba(168,85,247,0.15)' :
-                                       activity.type === 'autonomous_hire' ? 'rgba(234,179,8,0.15)' :
-                                       activity.type === 'execution' ? 'rgba(34,211,238,0.15)' :
-                                       activity.type === 'payment' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.1)',
+                              activity.type === 'selection' ? 'rgba(168,85,247,0.15)' :
+                                activity.type === 'autonomous_hire' ? 'rgba(234,179,8,0.15)' :
+                                  activity.type === 'execution' ? 'rgba(34,211,238,0.15)' :
+                                    activity.type === 'payment' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.1)',
                           }}
                         >
                           {activity.type === 'discovery' && <Search className="w-3 h-3 text-blue-400" />}
@@ -754,8 +792,8 @@ export default function LandingPage() {
                             )}
                           </p>
                           <p className="text-[10px] text-white/25 mt-1 font-mono">
-                            {new Date(activity.timestamp).toLocaleTimeString('en-US', { 
-                              hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' 
+                            {new Date(activity.timestamp).toLocaleTimeString('en-US', {
+                              hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
                             })}
                           </p>
                         </div>
@@ -773,8 +811,8 @@ export default function LandingPage() {
 
           {/* ZK Verification Panel - Right Side (during execution) */}
           {isRunning && zkProof.status !== 'idle' && !showResults && (
-            <div 
-              className="absolute right-6 top-20 w-80 pointer-events-auto overflow-hidden"
+            <div
+              className="absolute right-6 top-20 w-80 pointer-events-auto overflow-hidden animate-slide-right"
               style={{
                 background: 'linear-gradient(180deg, rgba(88,28,135,0.15) 0%, rgba(0,0,0,0.4) 100%)',
                 backdropFilter: 'blur(24px)',
@@ -785,25 +823,23 @@ export default function LandingPage() {
               }}
             >
               {/* Header */}
-              <div 
+              <div
                 className="flex items-center justify-between px-5 py-4"
-                style={{ 
+                style={{
                   borderBottom: '1px solid rgba(139,92,246,0.15)',
                   background: 'rgba(139,92,246,0.05)'
                 }}
               >
                 <div className="flex items-center gap-3">
-                  <div 
-                    className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                      zkProof.status === 'verified' ? 'bg-green-500/20' : 
-                      zkProof.status === 'failed' ? 'bg-red-500/20' : 'bg-purple-500/20'
-                    }`}
-                    style={{ border: `1px solid ${zkProof.status === 'verified' ? 'rgba(34,197,94,0.3)' : zkProof.status === 'failed' ? 'rgba(239,68,68,0.3)' : 'rgba(139,92,246,0.3)'}` }}
+                  <div
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center ${zkProof.status === 'verified' ? 'bg-purple-500/20' :
+                        zkProof.status === 'failed' ? 'bg-amber-500/20' : 'bg-purple-500/20'
+                      }`}
+                    style={{ border: `1px solid ${zkProof.status === 'verified' ? 'rgba(139,92,246,0.3)' : zkProof.status === 'failed' ? 'rgba(251,191,36,0.3)' : 'rgba(139,92,246,0.3)'}` }}
                   >
-                    <Shield className={`w-4 h-4 ${
-                      zkProof.status === 'verified' ? 'text-green-400' : 
-                      zkProof.status === 'failed' ? 'text-red-400' : 'text-purple-400'
-                    } ${zkProof.status !== 'verified' && zkProof.status !== 'failed' ? 'animate-pulse' : ''}`} />
+                    <Shield className={`w-4 h-4 ${zkProof.status === 'verified' ? 'text-purple-400' :
+                        zkProof.status === 'failed' ? 'text-amber-400' : 'text-purple-400'
+                      } ${zkProof.status !== 'verified' && zkProof.status !== 'failed' ? 'animate-pulse' : ''}`} />
                   </div>
                   <div>
                     <span className="text-[13px] font-semibold text-white/90">ZK Verification</span>
@@ -812,15 +848,14 @@ export default function LandingPage() {
                     )}
                   </div>
                 </div>
-                <div className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
-                  zkProof.status === 'verified' ? 'bg-green-500/20 text-green-400' :
-                  zkProof.status === 'failed' ? 'bg-red-500/20 text-red-400' :
-                  'bg-purple-500/20 text-purple-400'
-                }`}>
+                <div className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${zkProof.status === 'verified' ? 'bg-green-500/20 text-green-400' :
+                    zkProof.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                      'bg-purple-500/20 text-purple-400'
+                  }`}>
                   {zkProof.status.toUpperCase()}
                 </div>
               </div>
-              
+
               {/* Content */}
               <div className="p-4 space-y-4">
                 {/* Progress Steps */}
@@ -830,14 +865,13 @@ export default function LandingPage() {
                     const currentIdx = steps.indexOf(zkProof.status);
                     const isPast = i < currentIdx || zkProof.status === 'verified';
                     const isCurrent = step === zkProof.status;
-                    
+
                     return (
                       <div key={step} className="flex flex-col items-center flex-1">
-                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center mb-1 transition-all ${
-                          isPast ? 'bg-green-500/20 border border-green-500/40' :
-                          isCurrent ? 'bg-purple-500/20 border border-purple-500/40 scale-110' :
-                          'bg-white/5 border border-white/10'
-                        }`}>
+                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center mb-1 transition-all ${isPast ? 'bg-green-500/20 border border-green-500/40' :
+                            isCurrent ? 'bg-purple-500/20 border border-purple-500/40 scale-110' :
+                              'bg-white/5 border border-white/10'
+                          }`}>
                           {isPast ? (
                             <Zap className="w-3 h-3 text-green-400" />
                           ) : (
@@ -845,37 +879,36 @@ export default function LandingPage() {
                           )}
                         </div>
                         <span className={`text-[9px] ${isPast ? 'text-green-400' : isCurrent ? 'text-purple-400' : 'text-white/30'}`}>
-                          {step === 'committing' ? 'Commit' : 
-                           step === 'executing' ? 'Run' : 
-                           step === 'proving' ? 'Prove' : 
-                           step === 'verifying' ? 'Verify' : '✓'}
+                          {step === 'committing' ? 'Commit' :
+                            step === 'executing' ? 'Run' :
+                              step === 'proving' ? 'Prove' :
+                                step === 'verifying' ? 'Verify' : '✓'}
                         </span>
                       </div>
                     );
                   })}
                 </div>
-                
+
                 {/* Progress bar */}
                 <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full transition-all duration-500 ${
-                      zkProof.status === 'verified' ? 'bg-gradient-to-r from-green-500 to-emerald-400' :
-                      zkProof.status === 'failed' ? 'bg-gradient-to-r from-red-500 to-rose-400' :
-                      'bg-gradient-to-r from-purple-500 to-cyan-400'
-                    }`}
-                    style={{ 
+                  <div
+                    className={`h-full transition-all duration-500 ${zkProof.status === 'verified' ? 'bg-gradient-to-r from-green-500 to-emerald-400' :
+                        zkProof.status === 'failed' ? 'bg-gradient-to-r from-red-500 to-rose-400' :
+                          'bg-gradient-to-r from-purple-500 to-cyan-400'
+                      }`}
+                    style={{
                       width: zkProof.status === 'verified' ? '100%' :
-                             zkProof.status === 'verifying' ? '80%' :
-                             zkProof.status === 'proving' ? '60%' :
-                             zkProof.status === 'executing' ? '40%' :
-                             zkProof.status === 'committing' ? '20%' : '0%'
+                        zkProof.status === 'verifying' ? '80%' :
+                          zkProof.status === 'proving' ? '60%' :
+                            zkProof.status === 'executing' ? '40%' :
+                              zkProof.status === 'committing' ? '20%' : '0%'
                     }}
                   />
                 </div>
-                
+
                 {/* Proof Details */}
                 {zkProof.proofHash && (
-                  <div 
+                  <div
                     className="rounded-lg p-3 space-y-2"
                     style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.15)' }}
                   >
@@ -891,7 +924,7 @@ export default function LandingPage() {
                     )}
                     {/* Show BaseScan link only for real tx hashes (starts with 0x) */}
                     {zkProof.txHash && zkProof.txHash.startsWith('0x') ? (
-                      <a 
+                      <a
                         href={`https://sepolia.basescan.org/tx/${zkProof.txHash}`}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -908,16 +941,16 @@ export default function LandingPage() {
                     ) : null}
                   </div>
                 )}
-                
+
                 {/* Verified Badge */}
                 {zkProof.status === 'verified' && (
-                  <div 
+                  <div
                     className="rounded-lg p-3 text-center"
-                    style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }}
+                    style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)' }}
                   >
                     <div className="flex items-center justify-center gap-2 mb-1">
-                      <Shield className="w-4 h-4 text-green-400" />
-                      <span className="text-[12px] font-semibold text-green-400">Cryptographically Verified</span>
+                      <Shield className="w-4 h-4 text-purple-400" />
+                      <span className="text-[12px] font-semibold text-purple-400">Cryptographically Verified</span>
                     </div>
                     <p className="text-[10px] text-white/50">
                       This agent's execution has been verified using ZK-SNARKs
@@ -928,63 +961,137 @@ export default function LandingPage() {
             </div>
           )}
 
-          {/* x402 Streaming Payments Panel - Below Activity Feed */}
+          {/* x402 Streaming Micropayments Panel - Right Side Below ZK Panel */}
           {isRunning && (streamingPayments.active || streamingPayments.globalCount > 0) && !showResults && (
-            <div 
-              className="absolute left-6 bottom-36 w-56 pointer-events-auto overflow-hidden"
+            <div
+              className="absolute right-6 bottom-32 w-80 pointer-events-auto overflow-hidden z-20 animate-card-enter"
               style={{
-                background: 'rgba(0,0,0,0.6)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid rgba(234,179,8,0.15)',
-                borderRadius: '12px',
+                background: 'linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(0,20,0,0.6) 100%)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                border: `1px solid ${streamingPayments.realTimeMode ? 'rgba(34,197,94,0.3)' : 'rgba(234,179,8,0.2)'}`,
+                borderRadius: '16px',
+                boxShadow: streamingPayments.realTimeMode
+                  ? '0 8px 32px rgba(34,197,94,0.15), inset 0 1px 0 rgba(34,197,94,0.1)'
+                  : '0 8px 32px rgba(234,179,8,0.1)',
               }}
             >
-              {/* Compact Header */}
-              <div className="flex items-center justify-between px-3 py-2 border-b border-yellow-500/10">
-                <div className="flex items-center gap-2">
-                  <DollarSign className={`w-3 h-3 text-yellow-400 ${streamingPayments.active ? 'animate-pulse' : ''}`} />
-                  <span className="text-[11px] font-medium text-white/80">x402 Streaming</span>
+              {/* Premium Header with Protocol Badge */}
+              <div
+                className="flex items-center justify-between px-4 py-3"
+                style={{
+                  borderBottom: '1px solid rgba(255,255,255,0.06)',
+                  background: streamingPayments.realTimeMode
+                    ? 'linear-gradient(135deg, rgba(34,197,94,0.1) 0%, transparent 100%)'
+                    : 'linear-gradient(135deg, rgba(234,179,8,0.1) 0%, transparent 100%)'
+                }}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${streamingPayments.realTimeMode ? 'bg-green-500/20' : 'bg-yellow-500/20'
+                    }`} style={{ border: `1px solid ${streamingPayments.realTimeMode ? 'rgba(34,197,94,0.3)' : 'rgba(234,179,8,0.3)'}` }}>
+                    <DollarSign className={`w-4 h-4 ${streamingPayments.realTimeMode ? 'text-green-400' : 'text-yellow-400'} ${streamingPayments.active ? 'animate-pulse' : ''}`} />
+                  </div>
+                  <div>
+                    <span className="text-[13px] font-semibold text-white/90">x402 Micropayments</span>
+                    <p className={`text-[10px] ${streamingPayments.realTimeMode ? 'text-green-400' : 'text-yellow-400'}`}>
+                      {streamingPayments.realTimeMode ? 'Real-Time On-Chain USDC' : 'Batch Mode'}
+                    </p>
+                  </div>
                 </div>
-                <div className={`px-1.5 py-0.5 rounded text-[8px] font-semibold ${
-                  streamingPayments.active 
-                    ? 'bg-yellow-500/20 text-yellow-400' 
-                    : 'bg-green-500/20 text-green-400'
-                }`}>
-                  {streamingPayments.active ? 'LIVE' : 'DONE'}
+                <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide ${streamingPayments.active
+                    ? streamingPayments.realTimeMode
+                      ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                      : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                    : 'bg-green-500/20 text-green-400 border border-green-500/30'
+                  }`}>
+                  {streamingPayments.active ? '● STREAMING' : '✓ SETTLED'}
                 </div>
               </div>
-              
-              {/* Compact Content */}
-              <div className="px-3 py-2 flex items-center justify-between">
-                <div className="text-center">
-                  <div className="text-[18px] font-bold text-yellow-400 tabular-nums">
+
+              {/* Live Stats Grid - smooth transitions */}
+              <div className="px-4 py-3 grid grid-cols-3 gap-3">
+                <div className="text-center p-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                  <div
+                    className={`text-[22px] font-bold tabular-nums transition-all duration-300 ${streamingPayments.realTimeMode ? 'text-green-400' : 'text-yellow-400'}`}
+                  >
                     {streamingPayments.globalCount}
                   </div>
-                  <div className="text-[8px] text-white/40 uppercase">μPayments</div>
+                  <div className="text-[9px] text-white/40 uppercase tracking-wider">Micro TXs</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-[14px] font-semibold text-white/80 tabular-nums">
+                <div className="text-center p-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                  <div className="text-[18px] font-bold text-white/90 tabular-nums transition-all duration-300">
                     ${streamingPayments.totalPaid}
                   </div>
-                  <div className="text-[8px] text-white/40 uppercase">Paid</div>
+                  <div className="text-[9px] text-white/40 uppercase tracking-wider">USDC Paid</div>
                 </div>
-                {streamingPayments.toAgent && (
-                  <div className="text-center">
-                    <div className="text-[10px] font-medium text-green-400 truncate max-w-[60px]">
-                      {streamingPayments.toAgent}
-                    </div>
-                    <div className="text-[8px] text-white/40 uppercase">To</div>
+                <div className="text-center p-2 rounded-xl transition-all duration-500" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                  <div className="text-[14px] font-semibold text-cyan-400 truncate transition-all duration-500">
+                    {streamingPayments.toAgent || '—'}
                   </div>
-                )}
+                  <div className="text-[9px] text-white/40 uppercase tracking-wider">Recipient</div>
+                </div>
               </div>
+
+              {/* Real On-Chain Transactions with BaseScan Links */}
+              {streamingPayments.onChainTxs.length > 0 && (
+                <div className="px-4 pb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-[10px] text-white/50 uppercase tracking-wider font-medium">
+                      Verified On-Chain Transfers
+                    </div>
+                    <div className="text-[10px] text-green-400 font-mono">
+                      {streamingPayments.onChainTxs.length} TX{streamingPayments.onChainTxs.length > 1 ? 's' : ''}
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 max-h-32 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+                    {streamingPayments.onChainTxs.slice(-5).map((tx) => (
+                      <a
+                        key={tx.txHash}
+                        href={`https://sepolia.basescan.org/tx/${tx.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-2 rounded-xl transition-all hover:scale-[1.02]"
+                        style={{
+                          background: 'linear-gradient(135deg, rgba(34,197,94,0.1) 0%, rgba(34,197,94,0.05) 100%)',
+                          border: '1px solid rgba(34,197,94,0.15)'
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-lg bg-green-500/20 flex items-center justify-center">
+                            <Zap className="w-3 h-3 text-green-400" />
+                          </div>
+                          <div>
+                            <span className="text-[11px] font-semibold text-green-300">${tx.amount} USDC</span>
+                            <p className="text-[9px] text-white/30 font-mono">{tx.txHash.slice(0, 10)}...{tx.txHash.slice(-6)}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[9px] text-blue-400">
+                          <span>Block {tx.blockNumber}</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Protocol Badge Footer */}
+              {streamingPayments.realTimeMode && (
+                <div
+                  className="px-4 py-2 flex items-center justify-center gap-2"
+                  style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.2)' }}
+                >
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                  <span className="text-[9px] text-white/40">Real USDC transfers on Base Sepolia</span>
+                </div>
+              )}
             </div>
           )}
 
           {/* Results Panel - Right Side */}
           {showResults && result && (
-            <div 
-              className="absolute right-6 top-20 bottom-32 w-96 pointer-events-auto overflow-hidden"
+            <div
+              className="absolute right-6 top-20 bottom-32 w-96 pointer-events-auto overflow-hidden animate-slide-right"
               style={{
                 background: 'linear-gradient(180deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.25) 100%)',
                 backdropFilter: 'blur(24px)',
@@ -995,15 +1102,15 @@ export default function LandingPage() {
               }}
             >
               {/* Header */}
-              <div 
+              <div
                 className="flex items-center justify-between px-5 py-4"
-                style={{ 
+                style={{
                   borderBottom: '1px solid rgba(255,255,255,0.06)',
                   background: 'linear-gradient(135deg, rgba(34,197,94,0.08) 0%, rgba(255,255,255,0.02) 100%)'
                 }}
               >
                 <div className="flex items-center gap-3">
-                  <div 
+                  <div
                     className="w-8 h-8 rounded-xl flex items-center justify-center"
                     style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)' }}
                   >
@@ -1016,18 +1123,77 @@ export default function LandingPage() {
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowResults(false)}
-                  className="text-white/40 hover:text-white/80 transition-colors p-1.5 rounded-lg hover:bg-white/5"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+
+                {/* ZK Verification Badge in Results */}
+                <div className="flex items-center gap-2">
+                  {zkProof.status === 'verified' && (
+                    zkProof.txHash && zkProof.txHash.startsWith('0x') ? (
+                      <a
+                        href={`https://sepolia.basescan.org/tx/${zkProof.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all hover:scale-105"
+                        style={{
+                          background: 'rgba(139,92,246,0.15)',
+                          border: '1px solid rgba(139,92,246,0.3)'
+                        }}
+                        title={`View ZK Proof on BaseScan\nTX: ${zkProof.txHash}`}
+                      >
+                        <Shield className="w-3.5 h-3.5 text-purple-400" />
+                        <span className="text-[10px] font-semibold text-purple-300">ZK VERIFIED</span>
+                        <ExternalLink className="w-3 h-3 text-purple-400/60" />
+                      </a>
+                    ) : (
+                      <div
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg"
+                        style={{
+                          background: 'rgba(139,92,246,0.15)',
+                          border: '1px solid rgba(139,92,246,0.3)'
+                        }}
+                        title={zkProof.proofHash ? `Proof: ${zkProof.proofHash}` : 'ZK Verified Locally'}
+                      >
+                        <Shield className="w-3.5 h-3.5 text-purple-400" />
+                        <span className="text-[10px] font-semibold text-purple-300">ZK VERIFIED</span>
+                      </div>
+                    )
+                  )}
+                  {zkProof.status === 'failed' && (
+                    <div
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg"
+                      style={{
+                        background: 'rgba(239,68,68,0.15)',
+                        border: '1px solid rgba(239,68,68,0.3)'
+                      }}
+                    >
+                      <Shield className="w-3.5 h-3.5 text-red-400" />
+                      <span className="text-[10px] font-semibold text-red-300">UNVERIFIED</span>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(result);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className="text-white/40 hover:text-white/80 transition-colors p-1.5 rounded-lg hover:bg-white/5"
+                    title="Copy result"
+                  >
+                    {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => setShowResults(false)}
+                    className="text-white/40 hover:text-white/80 transition-colors p-1.5 rounded-lg hover:bg-white/5"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-              
+
               {/* Result Content */}
-              <div 
+              <div
                 className="overflow-y-auto p-5"
-                style={{ 
+                style={{
                   maxHeight: 'calc(100% - 70px)',
                   scrollbarWidth: 'none',
                   msOverflowStyle: 'none',
@@ -1039,7 +1205,7 @@ export default function LandingPage() {
                   <div className="space-y-3">
                     {result.split('\n').map((line, i) => {
                       if (!line.trim()) return null;
-                      
+
                       // Headers
                       if (line.startsWith('###')) {
                         return <h4 key={i} className="text-[13px] font-semibold text-white/80 mt-4 mb-2">{line.replace(/^###\s*/, '')}</h4>;
@@ -1050,12 +1216,12 @@ export default function LandingPage() {
                       if (line.startsWith('#')) {
                         return <h2 key={i} className="text-[15px] font-bold text-white mt-4 mb-2">{line.replace(/^#\s*/, '')}</h2>;
                       }
-                      
+
                       // Bold text
                       if (line.startsWith('**') && line.endsWith('**')) {
                         return <p key={i} className="text-[13px] font-semibold text-white/90 mb-1">{line.replace(/\*\*/g, '')}</p>;
                       }
-                      
+
                       // List items
                       if (line.startsWith('- ') || line.startsWith('* ')) {
                         return (
@@ -1065,7 +1231,7 @@ export default function LandingPage() {
                           </div>
                         );
                       }
-                      
+
                       // Regular paragraph
                       return <p key={i} className="text-[12px] text-white/60 leading-relaxed mb-2">{line}</p>;
                     })}
@@ -1076,7 +1242,7 @@ export default function LandingPage() {
           )}
 
           {/* Bottom Input Bar - Slim & Professional */}
-          <div 
+          <div
             className="absolute bottom-0 left-0 right-0 pointer-events-auto"
             style={{ padding: '24px 48px 32px' }}
           >
@@ -1125,7 +1291,7 @@ export default function LandingPage() {
                   className="flex-1 bg-transparent text-white placeholder-white/40 focus:outline-none disabled:opacity-50 py-3"
                   style={{ fontSize: '15px' }}
                 />
-                
+
                 {/* Run Demo - subtle text button */}
                 <button
                   onClick={handleRunDemo}
@@ -1141,8 +1307,8 @@ export default function LandingPage() {
                   disabled={!task.trim() || isRunning}
                   className="flex items-center justify-center w-10 h-10 rounded-xl transition-all disabled:opacity-30"
                   style={{
-                    background: task.trim() && !isRunning 
-                      ? 'linear-gradient(135deg, #ff8a00 0%, #ff3b6b 100%)' 
+                    background: task.trim() && !isRunning
+                      ? 'linear-gradient(135deg, #ff8a00 0%, #ff3b6b 100%)'
                       : 'rgba(255,255,255,0.1)',
                   }}
                 >
@@ -1163,7 +1329,7 @@ export default function LandingPage() {
         </div>
 
       </div>
-      
+
       {/* Premium wallet connector styling */}
       <style>{`
         .wallet-connector-premium button {
@@ -1190,7 +1356,7 @@ export default function LandingPage() {
           background: linear-gradient(135deg, rgba(255,138,0,0.9) 0%, rgba(255,59,107,0.9) 100%) !important;
         }
       `}</style>
-      
+
       {/* Quote Modal for task payment */}
       <QuoteModal
         isOpen={showQuoteModal}
@@ -1198,13 +1364,13 @@ export default function LandingPage() {
         task={pendingTask}
         onExecutionStarted={handlePaymentComplete}
       />
-      
+
       {/* Documentation Modal */}
       <DocsModal
         isOpen={showDocsModal}
         onClose={() => setShowDocsModal(false)}
       />
-      
+
       {/* Settings Modal for API Keys */}
       <SettingsModal
         isOpen={showSettingsModal}

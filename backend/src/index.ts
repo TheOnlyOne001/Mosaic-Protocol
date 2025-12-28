@@ -28,6 +28,14 @@ import {
     getUSDCAddress,
 } from './services/PaymentVerifier.js';
 import { executeTaskWithQuote } from './taskEngine.js';
+import {
+    getProtectionMonitor,
+    setupGracefulShutdown,
+    getAutoProtector,
+    getHealthMonitor,
+    getFlashLoanService,
+    getProtocolRegistry,
+} from './agents/liquidation-protection/index.js';
 
 const app = express();
 const server = createServer(app);
@@ -108,12 +116,12 @@ function formatTimestamp(): string {
 export function broadcast(event: WSEvent): void {
     const message = serializeEvent(event);
     eventCounter++;
-    
+
     // Visual timeline logging
     const color = getEventColor(event.type);
     const timestamp = formatTimestamp();
     const eventNum = String(eventCounter).padStart(3, '0');
-    
+
     // Extract key info from event for compact display
     let details = '';
     const e = event as any;
@@ -123,27 +131,27 @@ export function broadcast(event: WSEvent): void {
         case 'decision:selection': details = `${e.selected?.name} @ ${e.selected?.priceFormatted}`; break;
         case 'decision:autonomous': details = `${e.agentName} → ${e.capability}`; break;
         case 'payment:sending': details = `${e.fromName} → ${e.toName} (${e.amount})`; break;
-        case 'payment:confirmed': details = `${e.fromName} → ${e.toName} TX:${e.txHash?.slice(0,10)}...`; break;
+        case 'payment:confirmed': details = `${e.fromName} → ${e.toName} TX:${e.txHash?.slice(0, 10)}...`; break;
         case 'owner:earning': details = `${e.toAgent} earned ${e.amount}`; break;
         case 'stream:micro': details = `#${e.globalCount} paid:${e.paid}`; break;
         case 'stream:settle': details = `${e.toAgent} total:${e.totalPaid}`; break;
         case 'auction:start': details = `${e.capability} (${e.participants?.length} bidders)`; break;
         case 'auction:winner': details = `${e.winner?.agentName} won`; break;
         case 'verification:start': details = `${e.agentName}`; break;
-        case 'verification:job_created': details = `job:${e.jobId?.slice(0,10)}...`; break;
+        case 'verification:job_created': details = `job:${e.jobId?.slice(0, 10)}...`; break;
         case 'verification:proof_generating': details = `${e.progress}% ${e.agentName}`; break;
         case 'verification:proof_generated': details = `hash:${e.proofHash} (${e.timeMs}ms)`; break;
         case 'verification:verified': details = `${e.valid ? '✅' : '❌'} ${e.classification || ''}`; break;
         case 'verification:complete': details = `${e.agentName} ${e.verified ? '✅' : '❌'}`; break;
-        case 'verification:settled': details = `${e.amount} → ${e.paidTo?.slice(0,10)}...`; break;
+        case 'verification:settled': details = `${e.amount} → ${e.paidTo?.slice(0, 10)}...`; break;
         case 'task:complete': details = `cost:${e.totalCost}`; break;
         case 'collusion:blocked' as any: details = `${(e as any).reason}`; break;
         case 'error': details = e.message?.slice(0, 50); break;
         default: details = '';
     }
-    
+
     console.log(`${color}[TIMELINE #${eventNum}] ${timestamp} │ ${event.type.padEnd(28)} │ ${details}${RESET}`);
-    
+
     clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(message);
@@ -203,13 +211,13 @@ app.get('/api/zk/status', (req, res) => {
     const status = getEZKLSystemStatus();
     const canGenerateFresh = canGenerateFreshProofs();
     const proofLog = getProofLog();
-    
+
     // Convert proofLog Map to array for JSON
     const recentProofs = Array.from(proofLog.entries()).slice(-10).map(([jobId, data]) => ({
         jobId: jobId.slice(0, 12) + '...',
         ...data
     }));
-    
+
     res.json({
         ...status,
         canGenerateFreshProofs: canGenerateFresh,
@@ -286,23 +294,23 @@ app.post('/api/quote', async (req, res) => {
     const { task } = req.body;
 
     if (!task || typeof task !== 'string') {
-        return res.status(400).json({ 
-            success: false, 
-            error: 'Task is required and must be a string' 
+        return res.status(400).json({
+            success: false,
+            error: 'Task is required and must be a string'
         });
     }
 
     if (task.length < 10) {
-        return res.status(400).json({ 
-            success: false, 
-            error: 'Task must be at least 10 characters' 
+        return res.status(400).json({
+            success: false,
+            error: 'Task must be at least 10 characters'
         });
     }
 
     if (task.length > 2000) {
-        return res.status(400).json({ 
-            success: false, 
-            error: 'Task must be less than 2000 characters' 
+        return res.status(400).json({
+            success: false,
+            error: 'Task must be less than 2000 characters'
         });
     }
 
@@ -450,11 +458,18 @@ app.post('/api/execute', async (req, res) => {
         }
 
         // Verify payment on-chain
+        // When escrow mode is enabled, payment goes to escrow contract, not coordinator
+        const useEscrow = config.useX402Escrow && config.x402EscrowAddress;
+        const paymentRecipient = useEscrow ? config.x402EscrowAddress! : quote.paymentAddress;
+
+        console.log(`   Escrow Mode: ${useEscrow ? 'ON' : 'OFF'}`);
+        console.log(`   Payment Recipient: ${paymentRecipient}`);
+
         const verificationResult = await verifyPaymentForQuote(
             txHash,
             quoteId,
             quote.breakdown.total,
-            quote.paymentAddress,
+            paymentRecipient,
             userAddress
         );
 
@@ -469,9 +484,20 @@ app.post('/api/execute', async (req, res) => {
             });
         }
 
-        // Payment verified - respond immediately, execute async
+        // Payment verified - extract escrow taskId if in escrow mode
+        let escrowTaskId: string | null = null;
+        if (useEscrow) {
+            const { extractEscrowTaskId } = await import('./services/EscrowService.js');
+            escrowTaskId = await extractEscrowTaskId(txHash);
+            if (!escrowTaskId) {
+                console.warn('   ⚠️ Could not extract escrow taskId - continuing without escrow streaming');
+            } else {
+                console.log(`   ✅ Escrow Task ID: ${escrowTaskId.slice(0, 16)}...`);
+            }
+        }
+
         const executionId = `exec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        
+
         res.json({
             success: true,
             executionId,
@@ -485,10 +511,14 @@ app.post('/api/execute', async (req, res) => {
 
         // Execute task asynchronously using the pre-calculated plan
         console.log(`\n🚀 Starting task execution for ${executionId}...`);
-        
+
         try {
-            const result = await executeTaskWithQuote(quote);
-            
+            // Pass escrowTaskId for escrow-based streaming payments
+            const result = await executeTaskWithQuote({
+                ...quote,
+                escrowTaskId: escrowTaskId || undefined,
+            });
+
             if (result.success) {
                 markQuoteExecuted(quoteId);
                 console.log(`✅ Task ${executionId} completed successfully`);
@@ -497,9 +527,9 @@ app.post('/api/execute', async (req, res) => {
             }
         } catch (execError) {
             console.error(`❌ Task execution error:`, execError);
-            broadcast({ 
-                type: 'error', 
-                message: `Task execution failed: ${execError instanceof Error ? execError.message : 'Unknown error'}` 
+            broadcast({
+                type: 'error',
+                message: `Task execution failed: ${execError instanceof Error ? execError.message : 'Unknown error'}`
             });
         }
 
@@ -576,6 +606,288 @@ app.get('/api/payment/config', (req, res) => {
 // END PAYMENT SYSTEM ENDPOINTS
 // ============================================================================
 
+// ============================================================================
+// PROTECTION MONITOR ENDPOINTS (Phase 1: 24/7 Monitoring)
+// ============================================================================
+
+// Get protection monitor status
+app.get('/api/protection/status', (req, res) => {
+    const monitor = getProtectionMonitor();
+    res.json({
+        success: true,
+        ...monitor.getStats(),
+    });
+});
+
+// Register a position for monitoring
+app.post('/api/protection/register', (req, res) => {
+    const { userAddress, protocol, chain, alertThreshold, autoProtectThreshold, autoProtectEnabled } = req.body;
+
+    if (!userAddress || !protocol || !chain) {
+        return res.status(400).json({
+            success: false,
+            error: 'userAddress, protocol, and chain are required',
+        });
+    }
+
+    try {
+        const monitor = getProtectionMonitor();
+        const positionKey = monitor.registerPosition(userAddress, protocol, chain, {
+            alertThreshold,
+            autoProtectThreshold,
+            autoProtectEnabled,
+        });
+
+        res.json({
+            success: true,
+            positionKey,
+            message: `Position registered for monitoring`,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to register position',
+        });
+    }
+});
+
+// Unregister a position
+app.delete('/api/protection/unregister', (req, res) => {
+    const { userAddress, protocol, chain } = req.body;
+
+    if (!userAddress || !protocol || !chain) {
+        return res.status(400).json({
+            success: false,
+            error: 'userAddress, protocol, and chain are required',
+        });
+    }
+
+    const monitor = getProtectionMonitor();
+    const removed = monitor.unregisterPosition(userAddress, protocol, chain);
+
+    res.json({
+        success: removed,
+        message: removed ? 'Position unregistered' : 'Position not found',
+    });
+});
+
+// Update protection settings
+app.put('/api/protection/settings', (req, res) => {
+    const { userAddress, protocol, chain, alertThreshold, autoProtectThreshold, autoProtectEnabled } = req.body;
+
+    if (!userAddress || !protocol || !chain) {
+        return res.status(400).json({
+            success: false,
+            error: 'userAddress, protocol, and chain are required',
+        });
+    }
+
+    const monitor = getProtectionMonitor();
+    const updated = monitor.updateSettings(userAddress, protocol, chain, {
+        alertThreshold,
+        autoProtectThreshold,
+        autoProtectEnabled,
+    });
+
+    res.json({
+        success: updated,
+        message: updated ? 'Settings updated' : 'Position not found',
+    });
+});
+
+// Get all monitored positions
+app.get('/api/protection/positions', (req, res) => {
+    const monitor = getProtectionMonitor();
+    const positions = monitor.getMonitoredPositions();
+
+    res.json({
+        success: true,
+        count: positions.length,
+        positions,
+    });
+});
+
+// Start/stop monitoring (for admin)
+app.post('/api/protection/control', (req, res) => {
+    const { action } = req.body;
+
+    const monitor = getProtectionMonitor();
+
+    if (action === 'start') {
+        monitor.start();
+        res.json({ success: true, message: 'Monitor started' });
+    } else if (action === 'stop') {
+        monitor.stop();
+        res.json({ success: true, message: 'Monitor stopped' });
+    } else {
+        res.status(400).json({ success: false, error: 'action must be "start" or "stop"' });
+    }
+});
+
+// Preview deleverage strategy (Phase 2: Auto-Execution)
+app.post('/api/protection/deleverage/preview', async (req, res) => {
+    const { userAddress, protocol, chain, targetHealthFactor } = req.body;
+
+    if (!userAddress || !protocol || !chain) {
+        return res.status(400).json({
+            success: false,
+            error: 'userAddress, protocol, and chain are required',
+        });
+    }
+
+    try {
+        // Get current position health
+        const healthMonitor = getHealthMonitor();
+        const health = await healthMonitor.checkProtocolPosition(userAddress, protocol, chain);
+
+        if (!health) {
+            return res.status(404).json({
+                success: false,
+                error: 'Position not found or no debt',
+            });
+        }
+
+        // Build deleverage strategy
+        const autoProtector = getAutoProtector();
+        const strategy = await autoProtector.buildDeleverageStrategy(health, targetHealthFactor);
+
+        // Perform safety checks
+        const safetyResult = await autoProtector.performSafetyChecks(strategy);
+
+        res.json({
+            success: true,
+            currentHealthFactor: health.healthFactor,
+            strategy: {
+                type: strategy.type,
+                assetToRepay: strategy.assetToRepay,
+                amountToRepay: strategy.amountToRepayFormatted,
+                amountToRepayUSD: strategy.amountToRepayUSD,
+                estimatedNewHealthFactor: strategy.estimatedNewHealthFactor,
+                estimatedGasUSD: strategy.estimatedGasUSD,
+                isValid: strategy.isValid,
+                validationErrors: strategy.validationErrors,
+            },
+            safetyCheck: safetyResult,
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to preview deleverage',
+        });
+    }
+});
+
+// Preview flash loan deleverage strategy (Phase 3)
+app.post('/api/protection/flashloan/preview', async (req, res) => {
+    const { userAddress, protocol, chain, targetHealthFactor } = req.body;
+
+    if (!userAddress || !protocol || !chain) {
+        return res.status(400).json({
+            success: false,
+            error: 'userAddress, protocol, and chain are required',
+        });
+    }
+
+    try {
+        // Get current position health
+        const healthMonitor = getHealthMonitor();
+        const health = await healthMonitor.checkProtocolPosition(userAddress, protocol, chain);
+
+        if (!health) {
+            return res.status(404).json({
+                success: false,
+                error: 'Position not found or no debt',
+            });
+        }
+
+        // Build flash loan strategy
+        const flashLoanService = getFlashLoanService();
+        const strategy = await flashLoanService.buildFlashLoanStrategy(health, targetHealthFactor);
+
+        res.json({
+            success: true,
+            currentHealthFactor: health.healthFactor,
+            strategy: {
+                type: strategy.type,
+                flashLoanAsset: strategy.flashLoanAsset,
+                flashLoanAmount: strategy.flashLoanAmount.toString(),
+                flashLoanPremiumPercent: strategy.flashLoanPremiumPercent,
+                collateralAsset: strategy.collateralAsset,
+                collateralToSwap: strategy.collateralToSwap.toString(),
+                estimatedNewHealthFactor: strategy.estimatedNewHealthFactor,
+                totalCostUSD: strategy.totalCostUSD,
+                requiresContractDeployment: strategy.requiresContractDeployment,
+                isValid: strategy.isValid,
+                validationErrors: strategy.validationErrors,
+                warnings: strategy.warnings,
+            },
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to preview flash loan',
+        });
+    }
+});
+
+// Get all positions across all protocols (Phase 4: Multi-Protocol)
+app.get('/api/protection/all-positions/:chain/:userAddress', async (req, res) => {
+    const { chain, userAddress } = req.params;
+
+    try {
+        const registry = getProtocolRegistry();
+        const positions = await registry.getAllPositions(chain, userAddress);
+
+        res.json({
+            success: true,
+            ...positions,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to fetch positions',
+        });
+    }
+});
+
+// Get positions at risk across all protocols
+app.get('/api/protection/at-risk/:chain/:userAddress', async (req, res) => {
+    const { chain, userAddress } = req.params;
+    const threshold = parseFloat(req.query.threshold as string) || 1.5;
+
+    try {
+        const registry = getProtocolRegistry();
+        const atRisk = await registry.getPositionsAtRisk(chain, userAddress, threshold);
+
+        res.json({
+            success: true,
+            threshold,
+            count: atRisk.length,
+            positions: atRisk,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to fetch positions at risk',
+        });
+    }
+});
+
+// Get supported protocols
+app.get('/api/protection/protocols', (req, res) => {
+    const registry = getProtocolRegistry();
+    res.json({
+        success: true,
+        protocols: registry.getSupportedProtocols(),
+    });
+});
+
+// ============================================================================
+// END PROTECTION MONITOR ENDPOINTS
+// ============================================================================
+
 // Submit a task - REAL EXECUTION
 app.post('/api/tasks', async (req, res) => {
     const { task } = req.body;
@@ -588,10 +900,10 @@ app.post('/api/tasks', async (req, res) => {
         resetTimeline(); // Reset timeline for visual debugging
         console.log('\n📝 Received task:', task);
         res.json({ status: 'started', task });
-        
+
         // Execute with real agent marketplace
         const result = await executeTask(task);
-        
+
         if (!result.success) {
             console.error('Task failed:', result.error);
         }
@@ -611,7 +923,7 @@ app.post('/api/demo/start', async (req, res) => {
         // Execute a default demo task
         const demoTask = "Analyze the top Solana DeFi protocols (Jupiter, Raydium, Marinade). Provide market data, key insights, and a summary report.";
         const result = await executeTask(demoTask);
-        
+
         if (!result.success) {
             console.error('Demo failed:', result.error);
         }
@@ -625,7 +937,7 @@ app.post('/api/demo/start', async (req, res) => {
 app.post('/api/demo/reset', async (req, res) => {
     clearDecisionLog();
     resetStreamingStats(); // Reset x402 streaming stats
-    
+
     // Reset all agent statuses
     try {
         const agents = await getAllAgents();
@@ -635,12 +947,12 @@ app.post('/api/demo/reset', async (req, res) => {
     } catch (e) {
         // Ignore errors
     }
-    
+
     // Reset standard agent IDs
     ['coordinator', 'research', 'analyst', 'writer', 'market', 'summarizer'].forEach(id => {
         broadcast({ type: 'agent:status', id, status: 'idle' });
     });
-    
+
     res.json({ status: 'reset' });
 });
 
@@ -652,7 +964,7 @@ async function start() {
 
     // Validate config
     const configValid = validateConfig();
-    
+
     if (!config.groqApiKey && !config.anthropicApiKey) {
         console.error('❌ No LLM API key configured. Set GROQ_API_KEY (recommended) or ANTHROPIC_API_KEY');
         console.log('   Set it in your .env file or provide via Settings\n');
@@ -665,7 +977,7 @@ async function start() {
         await initRegistry();
         const agents = await getAllAgents();
         console.log(`✅ Loaded ${agents.length} agents from on-chain registry\n`);
-        
+
         // Show agents by owner
         const byOwner = new Map<string, string[]>();
         agents.forEach(a => {
@@ -673,16 +985,16 @@ async function start() {
             if (!byOwner.has(ownerKey)) byOwner.set(ownerKey, []);
             byOwner.get(ownerKey)!.push(a.name);
         });
-        
+
         console.log('👥 Agents by Owner:');
         byOwner.forEach((agentNames, owner) => {
             console.log(`   ${owner}...: ${agentNames.join(', ')}`);
         });
-        
+
         // Show capabilities
         const capabilities = new Set(agents.map(a => a.capability));
         console.log(`\n📦 Available capabilities: ${[...capabilities].join(', ')}`);
-        
+
     } catch (error) {
         console.error('❌ Failed to initialize registry:', error);
         process.exit(1);
@@ -716,7 +1028,7 @@ async function start() {
     console.log(`   Python path:     ${ezklStatus.pythonPath}`);
     console.log(`   Fresh proofs:    ${canGenerateFreshProofs() ? '✅ AVAILABLE' : '⚠️  FALLBACK MODE (static proof)'}`);
     console.log(`   Verification:    ${verificationOnChain ? '🔗 REAL TX (on-chain record)' : '📊 STATIC CALL (gas-free)'}`);
-    
+
     if (!canGenerateFreshProofs()) {
         console.log('\n   ⚠️  WARNING: Fresh proof generation not available.');
         console.log('      System will use static proof with output binding.');
@@ -734,13 +1046,13 @@ async function start() {
     const registryAddr = VERIFICATION_CONTRACTS.agentRegistry || config.registryAddress;
     const usdcAddr = VERIFICATION_CONTRACTS.usdcToken || config.usdcAddress;
     const useRealOnChain = process.env.USE_REAL_ONCHAIN !== 'false';
-    
+
     console.log(`   USDC Token:        ${usdcAddr ? '✅ ' + usdcAddr : '❌ NOT SET'}`);
     console.log(`   Agent Registry:    ${registryAddr ? '✅ ' + registryAddr : '❌ NOT SET'}`);
     console.log(`   Halo2Verifier:     ${halo2Addr ? '✅ ' + halo2Addr : '❌ NOT SET'}`);
     console.log(`   JobManager:        ${jobManagerAddr ? '✅ ' + jobManagerAddr : '❌ NOT SET'}`);
     console.log(`   USE_REAL_ONCHAIN:  ${useRealOnChain ? '✅ ENABLED' : '❌ DISABLED'}`);
-    
+
     if (jobManagerAddr) {
         // Try to check if contract is deployed
         try {
@@ -754,7 +1066,7 @@ async function start() {
             console.log(`   JobManager Status: ⚠️  Could not verify`);
         }
     }
-    
+
     // Warn if critical contracts missing
     if (!halo2Addr) {
         console.log('\n   ⚠️  WARNING: HALO2_VERIFIER_ADDRESS not set - ZK verification will fail');
@@ -788,13 +1100,26 @@ async function start() {
         console.log('💡 x402 DEEP INTEGRATION:');
         console.log('   - Token-level micro-payments during agent execution');
         console.log('   - Attention auctions for agent selection');
-        console.log('   - Real USDC settlements on Base Sepolia\n');
+        console.log('   - Real USDC settlements on Base Sepolia');
+        console.log(`   - Escrow Mode: ${config.useX402Escrow ? 'ENABLED' : 'DISABLED'}`);
+        console.log(`   - Escrow Address: ${config.x402EscrowAddress || 'NOT SET'}\n`);
         console.log('🔐 ZK VERIFICATION:');
         console.log(`   - Fresh proofs: ${canGenerateFreshProofs() ? 'ENABLED' : 'FALLBACK MODE'}`);
         console.log('   - Real EZKL proofs with output binding');
         console.log('   - On-chain verification via Halo2Verifier');
         console.log(`   - VerifiableJobManager: ${jobManagerAddr ? 'CONFIGURED' : 'LOCAL MODE'}\n`);
+
+        // Protection Monitor Endpoints
+        console.log('🛡️ PROTECTION MONITOR (Phase 1):');
+        console.log('   GET  /api/protection/status    - Monitor status & stats');
+        console.log('   POST /api/protection/register  - Register position for monitoring');
+        console.log('   PUT  /api/protection/settings  - Update protection settings');
+        console.log('   GET  /api/protection/positions - List monitored positions');
+        console.log('   POST /api/protection/control   - Start/stop monitor\n');
     });
+
+    // Initialize graceful shutdown for Protection Monitor
+    setupGracefulShutdown();
 }
 
 start();

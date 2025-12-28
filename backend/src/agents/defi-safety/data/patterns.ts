@@ -170,12 +170,22 @@ export const KNOWN_SAFE_TOKENS: Record<string, Record<string, { name: string; is
         '0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca': { name: 'USDbC' },
         '0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22': { name: 'cbETH' },
         '0xc1cba3fcea344f92d9239c08c0568f6f2f0ee452': { name: 'wstETH' },
+        // Note: BRETT is a memecoin - NOT added here to allow full risk analysis
     },
     ethereum: {
         '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2': { name: 'WETH', isNative: true },
         '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': { name: 'USDC' },
         '0x6b175474e89094c44da98b954eedeac495271d0f': { name: 'DAI' },
         '0xdac17f958d2ee523a2206206994597c13d831ec7': { name: 'USDT' },
+        '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984': { name: 'UNI' },
+        '0x514910771af9ca656af840dff83e8264ecf986ca': { name: 'LINK' },
+        '0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9': { name: 'AAVE' },
+        '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599': { name: 'WBTC' },
+        '0x6982508145454ce325ddbe47a25d4ec3d2311933': { name: 'PEPE' },
+        '0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce': { name: 'SHIB' },
+        '0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2': { name: 'MKR' },
+        '0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f': { name: 'SNX' },
+        '0x5a98fcbea516cf06857215779fd812ca3bef1b32': { name: 'LDO' },
     },
     bsc: {
         '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { name: 'WBNB', isNative: true },
@@ -185,6 +195,8 @@ export const KNOWN_SAFE_TOKENS: Record<string, Record<string, { name: string; is
         '0x2170ed0880ac9a755fd29b2688956bd959f933f8': { name: 'ETH' },
         '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c': { name: 'BTCB' },
         '0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82': { name: 'CAKE' },
+        // SafeMoon V2 (new contract) - reflection token with high tax but legitimate
+        '0x42981d0bfbaf196529376ee702f2a9eb9092fcb5': { name: 'SafeMoon V2' },
     },
     arbitrum: {
         '0x82af49447d8a07e3bd95bd0d56f35241523fbab1': { name: 'WETH', isNative: true },
@@ -383,6 +395,103 @@ export const DEX_CONFIGS: Record<string, DexConfig[]> = {
             factoryType: 'uniswapV2',
         },
     ],
+    // ========================================================================
+    // PHASE 2: New Chain DEX Support
+    // ========================================================================
+    avalanche: [
+        {
+            name: 'Trader Joe (Avalanche)',
+            router: '0x60aE616a2155Ee3d9A68541Ba4544862310933d4',
+            factory: '0x9Ad6C38BE94206cA50bb0d90783181662f0Cfa10',
+            weth: '0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7', // WAVAX
+            factoryType: 'uniswapV2',
+        },
+        {
+            name: 'Pangolin (Avalanche)',
+            router: '0xE54Ca86531e17Ef3616d22Ca28b0D458b6C89106',
+            factory: '0xefa94DE7a4656D787667C749f7E1223D71E9FD88',
+            weth: '0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7',
+            factoryType: 'uniswapV2',
+        },
+        {
+            name: 'SushiSwap (Avalanche)',
+            router: '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506',
+            factory: '0xc35DADB65012eC5796536bD9864eD8773aBc74C4',
+            weth: '0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7',
+            factoryType: 'uniswapV2',
+        },
+    ],
+    fantom: [
+        {
+            name: 'SpookySwap (Fantom)',
+            router: '0xF491e7B69E4244ad4002BC14e878a34207E38c29',
+            factory: '0x152eE697f2E276fA89E96742e9bB9aB1F2E61bE3',
+            weth: '0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83', // WFTM
+            factoryType: 'uniswapV2',
+        },
+        {
+            name: 'SpiritSwap (Fantom)',
+            router: '0x16327E3FbDaCA3bcF7E38F5Af2599D2DDc33aE52',
+            factory: '0xEF45d134b73241eDa7703fa787148D9C9F4950b0',
+            weth: '0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83',
+            factoryType: 'uniswapV2',
+        },
+        {
+            name: 'SushiSwap (Fantom)',
+            router: '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506',
+            factory: '0xc35DADB65012eC5796536bD9864eD8773aBc74C4',
+            weth: '0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83',
+            factoryType: 'uniswapV2',
+        },
+    ],
+    zksync: [
+        {
+            name: 'SyncSwap (zkSync)',
+            router: '0x2da10A1e27bF85cEdD8FFb1AbBe97e53391C0295',
+            factory: '0xf2DAd89f2788a8CD54625C60b55cD3d2D0ACa7Cb',
+            weth: '0x5AEa5775959fBC2557Cc8789bC1bf90A239D9a91', // WETH
+            factoryType: 'uniswapV2',
+        },
+        {
+            name: 'Mute.io (zkSync)',
+            router: '0x8B791913eB07C32779a16750e3868aA8495F5964',
+            factory: '0x40be1cBa6C5B47cDF9da7f963B6F761F4C60627D',
+            weth: '0x5AEa5775959fBC2557Cc8789bC1bf90A239D9a91',
+            factoryType: 'uniswapV2',
+        },
+    ],
+    linea: [
+        {
+            name: 'SyncSwap (Linea)',
+            router: '0x80e38291e06339d10AAB483C65695D004dBD5C69',
+            factory: '0x37BAc764494c8db4e54BDE72f6965beA9fa0AC2d',
+            weth: '0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f', // WETH
+            factoryType: 'uniswapV2',
+        },
+        {
+            name: 'Velocore (Linea)',
+            router: '0xBe4E7a5e0C04c2E3FF69BCfF3aBe35C05B9246e3',
+            factory: '0xe5D09C6e97e1e58c7b5E3c55B8E97B59e5c1D7F2',
+            weth: '0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f',
+            factoryType: 'uniswapV2',
+        },
+    ],
+    blast: [
+        {
+            name: 'Thruster (Blast)',
+            router: '0x98994a9A7a2570367554589189dC9772241650f6',
+            factory: '0xa3C549938D6B6A1eb23e5DB8a1a9F9b5D6c3e6D5',
+            weth: '0x4300000000000000000000000000000000000004', // WETH
+            factoryType: 'uniswapV2',
+        },
+        {
+            name: 'BlasterSwap (Blast)',
+            router: '0xc972FaE6b524E8A6e0af21875675bF58a3133e60',
+            factory: '0x9CC1599D4378Ea41d444642D18AA9Be44f709FFD',
+            weth: '0x4300000000000000000000000000000000000004',
+            factoryType: 'uniswapV2',
+        },
+    ],
 };
 
 // Legacy export for compatibility
@@ -396,11 +505,11 @@ export const DEX_CONTRACTS = {
 // ============================================================================
 
 export const RISK_WEIGHTS = {
-    honeypot: 0.30,      // 30% - Can't sell = instant loss
+    honeypot: 0.40,      // 40% - Can't sell = instant loss (CRITICAL)
     rugPull: 0.25,       // 25% - Owner can steal funds
-    liquidity: 0.20,     // 20% - Can't exit position
-    holders: 0.15,       // 15% - Whale dump risk
-    contract: 0.10,      // 10% - Code quality
+    liquidity: 0.15,     // 15% - Can't exit position
+    holders: 0.08,       // 8% - Whale dump risk
+    contract: 0.12,      // 12% - Code quality (dangerous functions)
 };
 
 export const RISK_THRESHOLDS = {

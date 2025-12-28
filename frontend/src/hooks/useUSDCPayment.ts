@@ -6,6 +6,25 @@ import { parseUnits, formatUnits } from 'viem';
 import { ERC20_ABI, USDC_DECIMALS, getUSDCAddress } from '@/lib/contracts';
 import { getStoredAPIKeys, getBackendUrl } from '@/components/SettingsModal';
 
+// X402 Escrow contract ABI
+const X402_ESCROW_ABI = [
+  {
+    name: 'deposit',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'amount', type: 'uint96' },
+      { name: 'quoteId', type: 'string' },
+      { name: 'timeout', type: 'uint256' }
+    ],
+    outputs: [{ name: 'taskId', type: 'bytes32' }]
+  }
+] as const;
+
+// Escrow configuration - set via env or backend
+const X402_ESCROW_ADDRESS = process.env.NEXT_PUBLIC_X402_ESCROW_ADDRESS as `0x${string}` | undefined;
+const USE_ESCROW = process.env.NEXT_PUBLIC_USE_ESCROW === 'true';
+
 // Get API base URL from settings
 function getApiBase(): string {
   return getBackendUrl();
@@ -112,16 +131,21 @@ export function useUSDCPayment() {
     },
   });
 
-  // Read USDC allowance for coordinator
+  // Determine spender: escrow contract or coordinator wallet
+  const spenderAddress = (USE_ESCROW && X402_ESCROW_ADDRESS) 
+    ? X402_ESCROW_ADDRESS 
+    : (quote?.paymentAddress as `0x${string}` | undefined);
+
+  // Read USDC allowance for spender (escrow contract or coordinator)
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address: usdcAddress,
     abi: ERC20_ABI,
     functionName: 'allowance',
-    args: address && quote?.paymentAddress 
-      ? [address, quote.paymentAddress as `0x${string}`] 
+    args: address && spenderAddress 
+      ? [address, spenderAddress] 
       : undefined,
     query: {
-      enabled: !!address && !!usdcAddress && !!quote?.paymentAddress,
+      enabled: !!address && !!usdcAddress && !!spenderAddress,
     },
   });
 
@@ -174,6 +198,7 @@ export function useUSDCPayment() {
 
   /**
    * Execute the full payment flow
+   * Supports both escrow mode (trustless) and direct transfer (legacy)
    */
   const executePayment = useCallback(async (): Promise<boolean> => {
     if (!quote || !address || !usdcAddress || !isConnected) {
@@ -182,7 +207,11 @@ export function useUSDCPayment() {
       return false;
     }
 
-    const paymentAddress = quote.paymentAddress as `0x${string}`;
+    // Determine payment target: escrow contract or coordinator wallet
+    const useEscrowMode = USE_ESCROW && X402_ESCROW_ADDRESS;
+    const paymentAddress = useEscrowMode 
+      ? X402_ESCROW_ADDRESS 
+      : (quote.paymentAddress as `0x${string}`);
     const amount = BigInt(quote.breakdown.total);
 
     try {
@@ -191,27 +220,31 @@ export function useUSDCPayment() {
         throw new Error(`Insufficient USDC balance. Need ${formatUnits(amount, USDC_DECIMALS)}, have ${formatUnits(balance, USDC_DECIMALS)}`);
       }
 
-      // Check allowance
+      // Check allowance (for escrow, we approve the escrow contract)
       setStatus('checking_allowance');
       await refetchAllowance();
       
       const currentAllowance = allowance ?? BigInt(0);
 
-      // Approve if needed
+      // Approve if needed - approve escrow contract in escrow mode
+      const approvalTarget = useEscrowMode && X402_ESCROW_ADDRESS 
+        ? X402_ESCROW_ADDRESS 
+        : paymentAddress;
+        
       if (currentAllowance < amount) {
         setStatus('approving');
+        console.log(`[Payment] Approving ${approvalTarget} to spend ${formatUnits(amount, USDC_DECIMALS)} USDC`);
         
         await approveAsync({
           address: usdcAddress,
           abi: ERC20_ABI,
           functionName: 'approve',
-          args: [paymentAddress, amount],
+          args: [approvalTarget, amount],
         });
 
         setStatus('approval_pending');
         
         // Wait for approval to be mined
-        // The useWaitForTransactionReceipt hook handles this
         await new Promise<void>((resolve) => {
           const checkApproval = setInterval(async () => {
             const { data: newAllowance } = await refetchAllowance();
@@ -229,15 +262,30 @@ export function useUSDCPayment() {
         });
       }
 
-      // Execute transfer
+      // Execute payment
       setStatus('transferring');
       
-      const hash = await transferAsync({
-        address: usdcAddress,
-        abi: ERC20_ABI,
-        functionName: 'transfer',
-        args: [paymentAddress, amount],
-      });
+      let hash: `0x${string}`;
+      
+      if (useEscrowMode && X402_ESCROW_ADDRESS) {
+        // ESCROW MODE: Call escrow.deposit() - trustless payment
+        console.log('[Payment] Using X402 Escrow contract');
+        hash = await transferAsync({
+          address: X402_ESCROW_ADDRESS,
+          abi: X402_ESCROW_ABI,
+          functionName: 'deposit',
+          args: [amount, quote.quoteId, BigInt(3600)], // 1 hour timeout
+        });
+      } else {
+        // LEGACY MODE: Direct USDC transfer to coordinator
+        console.log('[Payment] Using direct transfer to coordinator');
+        hash = await transferAsync({
+          address: usdcAddress,
+          abi: ERC20_ABI,
+          functionName: 'transfer',
+          args: [paymentAddress, amount],
+        });
+      }
 
       setTxHash(hash);
       setStatus('transfer_pending');

@@ -137,8 +137,9 @@ export function parseUSDC(amount: string | number): bigint {
 
 /**
  * Get USDC contract address for a chain
+ * Returns undefined for unsupported chains instead of throwing
  */
-export function getUSDCAddress(chainId: number): `0x${string}` {
+export function getUSDCAddress(chainId: number): `0x${string}` | undefined {
   // Currently only Base Sepolia is supported
   if (chainId === 84532) {
     return CONTRACTS.USDC as `0x${string}`;
@@ -147,5 +148,6 @@ export function getUSDCAddress(chainId: number): `0x${string}` {
   if (chainId === 11155111) {
     return '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as `0x${string}`;
   }
-  throw new Error(`Unsupported chain: ${chainId}`);
+  // Unsupported chain - return undefined instead of throwing
+  return undefined;
 }

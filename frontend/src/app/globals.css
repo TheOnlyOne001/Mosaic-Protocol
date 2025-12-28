@@ -12,36 +12,36 @@
   --bg-secondary: #0a0a12;
   --bg-card: #0d0d18;
   --bg-elevated: #12121f;
-  
+
   /* Borders & Lines */
   --border-dim: #1a1a2e;
   --border-default: #252540;
   --border-bright: #3a3a5c;
-  
+
   /* Brand Colors */
   --purple-primary: #a855f7;
   --purple-dim: #7c3aed;
   --purple-bright: #c084fc;
   --purple-glow: rgba(168, 85, 247, 0.4);
-  
+
   --cyan-primary: #06b6d4;
   --cyan-dim: #0891b2;
   --cyan-bright: #22d3ee;
   --cyan-glow: rgba(6, 182, 212, 0.4);
-  
+
   /* Money & Success */
   --gold-primary: #fbbf24;
   --gold-bright: #fcd34d;
   --gold-glow: rgba(251, 191, 36, 0.5);
-  
+
   --green-primary: #22c55e;
   --green-glow: rgba(34, 197, 94, 0.4);
-  
+
   /* Danger / Alert */
   --red-primary: #ef4444;
   --red-bright: #f87171;
   --red-glow: rgba(239, 68, 68, 0.5);
-  
+
   /* Text */
   --text-primary: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.7);
@@ -90,7 +90,12 @@ body::before {
    TYPOGRAPHY
    ============================================ */
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.2;
@@ -178,10 +183,13 @@ h1, h2, h3, h4, h5, h6 {
    ============================================ */
 
 @keyframes pulse-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
     filter: brightness(1);
   }
+
   50% {
     opacity: 0.8;
     filter: brightness(1.2);
@@ -189,10 +197,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @keyframes breathing {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scale(1);
     opacity: 0.8;
   }
+
   50% {
     transform: scale(1.05);
     opacity: 1;
@@ -203,6 +214,7 @@ h1, h2, h3, h4, h5, h6 {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -215,21 +227,49 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
-  20%, 40%, 60%, 80% { transform: translateX(2px); }
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-2px);
+  }
+
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(2px);
+  }
 }
 
 @keyframes screen-flash {
-  0% { opacity: 0; }
-  50% { opacity: 0.3; }
-  100% { opacity: 0; }
+  0% {
+    opacity: 0;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
+
+  100% {
+    opacity: 0;
+  }
 }
 
 @keyframes border-pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: inset 0 0 30px rgba(239, 68, 68, 0);
   }
+
   50% {
     box-shadow: inset 0 0 60px rgba(239, 68, 68, 0.3);
   }
@@ -246,6 +286,60 @@ h1, h2, h3, h4, h5, h6 {
 .animate-shake {
   animation: shake 0.5s ease-in-out;
 }
+
+@keyframes shimmer {
+  to {
+    transform: translateX(200%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+/* Protection UI Animations */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-subtle {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes shrink {
+  from {
+    width: 100%;
+  }
+
+  to {
+    width: 0%;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 1.5s ease-in-out infinite;
+}
+
 
 /* ============================================
    BUTTON STYLES
@@ -438,7 +532,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .bg-gradient-mesh {
-  background: 
+  background:
     radial-gradient(at 20% 20%, rgba(168, 85, 247, 0.1) 0%, transparent 50%),
     radial-gradient(at 80% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 50%),
     var(--bg-primary);
@@ -465,10 +559,181 @@ h1, h2, h3, h4, h5, h6 {
 .border-gradient {
   border: 2px solid transparent;
   background: linear-gradient(var(--bg-card), var(--bg-card)) padding-box,
-              linear-gradient(135deg, var(--purple-primary), var(--cyan-primary)) border-box;
+    linear-gradient(135deg, var(--purple-primary), var(--cyan-primary)) border-box;
 }
 
 /* Hide elements for GSAP reveals */
 .gsap-hidden {
   visibility: hidden;
+}
+
+/* ============================================
+   PREMIUM GLASS CARDS
+   ============================================ */
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+}
+
+.glass-card-elevated {
+  background: rgba(15, 15, 20, 0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.glass-modal-backdrop {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.glass-modal {
+  background: rgba(15, 15, 20, 0.85);
+  backdrop-filter: blur(32px) saturate(150%);
+  -webkit-backdrop-filter: blur(32px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+
+/* ============================================
+   CARD ENTRANCE ANIMATIONS
+   ============================================ */
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes modal-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-card-enter {
+  animation: card-enter 0.35s ease-out forwards;
+}
+
+.animate-slide-right {
+  animation: slide-in-right 0.35s ease-out forwards;
+}
+
+.animate-slide-left {
+  animation: slide-in-left 0.35s ease-out forwards;
+}
+
+.animate-modal-enter {
+  animation: modal-enter 0.25s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+/* ============================================
+   MICRO-ANIMATIONS
+   ============================================ */
+
+/* Hover lift effect */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* Soft glow pulse */
+@keyframes glow-pulse-orange {
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(255, 138, 0, 0.15);
+  }
+
+  50% {
+    box-shadow: 0 0 30px rgba(255, 138, 0, 0.3);
+  }
+}
+
+@keyframes glow-pulse-purple {
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+  }
+
+  50% {
+    box-shadow: 0 0 30px rgba(139, 92, 246, 0.3);
+  }
+}
+
+.animate-glow-orange {
+  animation: glow-pulse-orange 2s ease-in-out infinite;
+}
+
+.animate-glow-purple {
+  animation: glow-pulse-purple 2s ease-in-out infinite;
+}
+
+/* Focus glow for inputs */
+.focus-glow:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 138, 0, 0.3);
 }

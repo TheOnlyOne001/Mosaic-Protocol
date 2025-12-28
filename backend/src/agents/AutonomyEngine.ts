@@ -12,6 +12,15 @@ import { createMarketAgent } from './MarketAgent.js';
 import { createAnalystAgent } from './AnalystAgent.js';
 import { createWriterAgent, createSummarizerAgent } from './WriterAgent.js';
 import { DeFiSafetyAgent } from './DeFiSafetyAgent.js';
+import { OnChainAnalystAgent } from './OnChainAnalystAgent.js';
+import { SmartRouterAgent } from './SmartRouterAgent.js';
+import { PortfolioManagerAgent } from './PortfolioManagerAgent.js';
+import { YieldOptimizerAgent } from './YieldOptimizerAgent.js';
+import { BridgeAgent } from './BridgeAgent.js';
+import { LiquidationProtectionAgent } from './LiquidationProtectionAgent.js';
+import { GovernanceAgent } from './GovernanceAgent.js';
+import { AlertAgent } from './AlertAgent.js';
+import { ExecutorAgent } from './ExecutorAgent.js';
 import { config } from '../config.js';
 import { checkHire, recordHire } from '../collusion/CollusionDetector.js';
 
@@ -33,6 +42,10 @@ const budgetDelegations: Map<string, BudgetDelegation> = new Map();
 let globalDelegatorWallet: Wallet | null = null;
 let globalMaxBudget: bigint = BigInt(0);
 let globalSpentBudget: bigint = BigInt(0);
+
+// Track hire chains to prevent circular hiring (A → B → C → A)
+// Key: taskId, Value: Set of capabilities already hired in this chain
+const hireChains: Map<string, Set<string>> = new Map();
 
 /**
  * Autonomous hire decision detected from agent output
@@ -86,12 +99,12 @@ export class AutonomyEngine {
             spentBudget: BigInt(0),
             delegatedTo: agentAddress
         });
-        
+
         // Set global delegator for sub-agent access
         globalDelegatorWallet = delegatorWallet;
         globalMaxBudget = maxBudget;
         globalSpentBudget = BigInt(0);
-        
+
         console.log(`   💰 Budget delegated: ${agentAddress.slice(0, 10)}... can spend up to ${Number(maxBudget) / 1_000_000} USDC`);
     }
 
@@ -105,12 +118,12 @@ export class AutonomyEngine {
         if (delegation && delegation.spentBudget < delegation.maxBudget) {
             return { wallet: delegation.delegatorWallet, isDelegated: true };
         }
-        
+
         // Fall back to global delegator (for sub-agents that were hired)
         if (globalDelegatorWallet && globalSpentBudget < globalMaxBudget) {
             return { wallet: globalDelegatorWallet, isDelegated: true };
         }
-        
+
         return { wallet: agentWallet, isDelegated: false };
     }
 
@@ -130,7 +143,7 @@ export class AutonomyEngine {
             console.log(`   💸 Spent ${Number(amount) / 1_000_000} USDC from delegated budget (${Number(delegation.spentBudget) / 1_000_000}/${Number(delegation.maxBudget) / 1_000_000})`);
             return true;
         }
-        
+
         // Fall back to global budget for sub-agents
         if (globalDelegatorWallet) {
             if (globalSpentBudget + amount > globalMaxBudget) {
@@ -141,7 +154,7 @@ export class AutonomyEngine {
             console.log(`   💸 Spent ${Number(amount) / 1_000_000} USDC from global budget (${Number(globalSpentBudget) / 1_000_000}/${Number(globalMaxBudget) / 1_000_000})`);
             return true;
         }
-        
+
         return false;
     }
 
@@ -241,7 +254,7 @@ export class AutonomyEngine {
             'summary': 'summarization',
             'summarization': 'summarization',
             'summarize': 'summarization',
-            
+
             // DeFi Safety Agent
             'safety': 'token_safety_analysis',
             'token_safety': 'token_safety_analysis',
@@ -251,7 +264,7 @@ export class AutonomyEngine {
             'rug': 'token_safety_analysis',
             'scam': 'token_safety_analysis',
             'audit': 'token_safety_analysis',
-            
+
             // OnChain Analyst
             'onchain': 'onchain_analysis',
             'onchain_analysis': 'onchain_analysis',
@@ -261,7 +274,7 @@ export class AutonomyEngine {
             'contract': 'onchain_analysis',
             'balance': 'onchain_analysis',
             'profile': 'onchain_analysis',
-            
+
             // Smart Router / DEX Aggregation
             'dex': 'dex_aggregation',
             'dex_aggregation': 'dex_aggregation',
@@ -271,7 +284,7 @@ export class AutonomyEngine {
             'exchange': 'dex_aggregation',
             'trade': 'dex_aggregation',
             'slippage': 'dex_aggregation',
-            
+
             // Portfolio Manager
             'portfolio': 'portfolio_analysis',
             'portfolio_analysis': 'portfolio_analysis',
@@ -279,7 +292,7 @@ export class AutonomyEngine {
             'positions': 'portfolio_analysis',
             'assets': 'portfolio_analysis',
             'allocation': 'portfolio_analysis',
-            
+
             // Yield Optimizer
             'yield': 'yield_optimization',
             'yield_optimization': 'yield_optimization',
@@ -289,7 +302,7 @@ export class AutonomyEngine {
             'staking': 'yield_optimization',
             'lending': 'yield_optimization',
             'interest': 'yield_optimization',
-            
+
             // Bridge Agent
             'bridge': 'cross_chain_bridging',
             'cross_chain_bridging': 'cross_chain_bridging',
@@ -297,7 +310,7 @@ export class AutonomyEngine {
             'transfer': 'cross_chain_bridging',
             'move': 'cross_chain_bridging',
             'chain': 'cross_chain_bridging',
-            
+
             // Liquidation Protection
             'liquidation': 'liquidation_protection',
             'liquidation_protection': 'liquidation_protection',
@@ -306,7 +319,7 @@ export class AutonomyEngine {
             'collateral': 'liquidation_protection',
             'borrow': 'liquidation_protection',
             'deleverage': 'liquidation_protection',
-            
+
             // Governance Agent
             'governance': 'dao_governance',
             'dao_governance': 'dao_governance',
@@ -315,7 +328,7 @@ export class AutonomyEngine {
             'vote': 'dao_governance',
             'voting': 'dao_governance',
             'delegate': 'dao_governance',
-            
+
             // Alert Agent
             'alert': 'on_chain_monitoring',
             'on_chain_monitoring': 'on_chain_monitoring',
@@ -324,7 +337,7 @@ export class AutonomyEngine {
             'notify': 'on_chain_monitoring',
             'track': 'on_chain_monitoring',
             'whale': 'on_chain_monitoring',
-            
+
             // Executor Agent
             'execute': 'autonomous_execution',
             'autonomous_execution': 'autonomous_execution',
@@ -363,11 +376,40 @@ export class AutonomyEngine {
             };
         }
 
+        // Check for circular hiring (A → B → C → A prevention)
+        const taskKey = context.originalTask.slice(0, 50); // Use task prefix as key
+        let hireChain = hireChains.get(taskKey);
+        if (!hireChain) {
+            hireChain = new Set<string>();
+            hireChains.set(taskKey, hireChain);
+        }
+
+        // Normalize capability for comparison
+        const normalizedCap = this.normalizeCapability(capability) || capability;
+
+        if (hireChain.has(normalizedCap)) {
+            console.log(`   ❌ Circular hire detected: ${capability} already in chain`);
+            broadcast({
+                type: 'error',
+                message: `Circular hire blocked: ${capability} already in task chain (from ${requestingAgent.name})`,
+            });
+            return {
+                success: false,
+                hiredAgent: null,
+                result: null,
+                txHash: '',
+                error: `Circular hire detected: ${capability} was already hired in this task chain`,
+            };
+        }
+
+        // Add to chain tracking
+        hireChain.add(normalizedCap);
+
         try {
             // 1. DISCOVERY - Query on-chain registry
             console.log(`\n   🔍 Discovering ${capability} agents...`);
             const discovery = await discoverAgents(capability);
-            
+
             if (discovery.candidates.length === 0) {
                 throw new Error(`No ${capability} agents available in registry`);
             }
@@ -425,12 +467,12 @@ export class AutonomyEngine {
 
             // 3. PAYMENT - Real USDC transfer using delegated budget if available
             console.log(`   💰 Paying ${selectedAgent.name}...`);
-            
+
             // Get payment wallet - use delegator's wallet if budget is delegated
             const provider = getProvider();
             const { wallet: paymentWallet, isDelegated } = this.getPaymentWallet(requestingAgent.wallet);
             const connectedWallet = paymentWallet.connect(provider);
-            
+
             // Check if we can afford this hire
             if (isDelegated) {
                 if (!this.recordSpending(requestingAgent.wallet.address, selectedAgent.price)) {
@@ -477,9 +519,9 @@ export class AutonomyEngine {
 
             // 4. EXECUTION - Create and execute the hired agent
             console.log(`   🔧 Executing ${selectedAgent.name}...`);
-            
+
             const hiredAgentExecutor = this.createAgentExecutor(selectedAgent);
-            
+
             if (!hiredAgentExecutor) {
                 throw new Error(`Cannot create executor for ${selectedAgent.endpoint}`);
             }
@@ -584,6 +626,86 @@ export class AutonomyEngine {
                 return new DeFiSafetyAgent(
                     agent.tokenId,
                     config.defiSafetyPrivateKey || placeholderKey,
+                    agent.owner
+                );
+
+            case 'onchain_analysis':
+                // On-chain analyst for wallet/transaction analysis
+                return new OnChainAnalystAgent(
+                    agent.tokenId,
+                    placeholderKey,
+                    agent.owner
+                );
+
+            case 'dex_aggregation':
+            case 'smart_routing':
+                // Smart router for optimal DEX execution
+                return new SmartRouterAgent(
+                    agent.tokenId,
+                    placeholderKey,
+                    agent.owner
+                );
+
+            case 'portfolio_analysis':
+            case 'portfolio_management':
+                // Portfolio manager for rebalancing and analysis
+                return new PortfolioManagerAgent(
+                    agent.tokenId,
+                    placeholderKey,
+                    agent.owner
+                );
+
+            case 'yield_optimization':
+            case 'yield_farming':
+                // Yield optimizer for finding best yields
+                return new YieldOptimizerAgent(
+                    agent.tokenId,
+                    placeholderKey,
+                    agent.owner
+                );
+
+            case 'cross_chain_bridging':
+            case 'bridging':
+                // Bridge agent for cross-chain transfers
+                return new BridgeAgent(
+                    agent.tokenId,
+                    placeholderKey,
+                    agent.owner
+                );
+
+            case 'liquidation_protection':
+            case 'health_monitoring':
+                // Liquidation protection for lending positions
+                return new LiquidationProtectionAgent(
+                    agent.tokenId,
+                    placeholderKey,
+                    agent.owner
+                );
+
+            case 'dao_governance':
+            case 'governance':
+                // Governance agent for DAO voting
+                return new GovernanceAgent(
+                    agent.tokenId,
+                    placeholderKey,
+                    agent.owner
+                );
+
+            case 'on_chain_monitoring':
+            case 'alerting':
+                // Alert agent for monitoring and notifications
+                return new AlertAgent(
+                    agent.tokenId,
+                    placeholderKey,
+                    agent.owner
+                );
+
+            case 'autonomous_execution':
+            case 'execution':
+                // Executor agent for transaction execution
+                return new ExecutorAgent(
+                    agent.tokenId,
+                    placeholderKey,
                     agent.owner
                 );
 

@@ -289,6 +289,42 @@ export class RiskScorer {
         output += `### 📋 Recommendation\n`;
         output += `${report.recommendation}\n\n`;
         
+        // ACTIONABLE VERDICT - Clear buy/don't buy decision
+        output += `══════════════════════════════════════════════════════\n`;
+        output += `🎯 ACTIONABLE VERDICT\n`;
+        output += `══════════════════════════════════════════════════════\n`;
+        
+        if (report.overallRisk >= 70) {
+            output += `\n❌ **DO NOT BUY** - Critical/High risk detected\n`;
+            output += `\nKey reasons:\n`;
+            for (const warning of report.warnings.slice(0, 3)) {
+                output += `  • ${warning}\n`;
+            }
+            output += `\n⚠️ Proceeding with this token could result in total loss of funds.\n`;
+        } else if (report.overallRisk >= 50) {
+            output += `\n⚠️ **PROCEED WITH EXTREME CAUTION** - Medium-High risk\n`;
+            output += `\nIf you choose to proceed:\n`;
+            output += `  1. Use only funds you can afford to lose entirely\n`;
+            output += `  2. Start with a very small test transaction\n`;
+            output += `  3. Set a stop-loss or exit strategy before entering\n`;
+            output += `  4. Monitor the position actively\n`;
+        } else if (report.overallRisk >= 30) {
+            output += `\n⚠️ **ACCEPTABLE RISK** - Proceed with normal caution\n`;
+            output += `\nBefore buying:\n`;
+            output += `  1. Verify the contract address matches official sources\n`;
+            output += `  2. Start with a small position to test\n`;
+            output += `  3. Set reasonable position size limits\n`;
+        } else {
+            output += `\n✅ **SAFE TO BUY** - Low risk based on on-chain analysis\n`;
+            output += `\nPositive indicators:\n`;
+            for (const positive of report.positives.slice(0, 3)) {
+                output += `  ✓ ${positive}\n`;
+            }
+            output += `\nStandard DeFi precautions still apply.\n`;
+        }
+        
+        output += `\n`;
+        
         // Verification
         output += `─────────────────────────────────────────────────────\n`;
         output += `📍 Chain: ${report.chain} | Block: ${report.analysisBlock}\n`;

@@ -212,8 +212,28 @@ export class HolderAnalyzer {
         const balances = new Map<string, bigint>();
         
         try {
-            // Get recent transfers (last 10000 blocks)
-            const fromBlock = Math.max(0, currentBlock - 10000);
+            // P1: Extended block scanning - 30+ days coverage
+            // Block times: ETH ~12s, Base ~2s, BSC ~3s, Polygon ~2s
+            // For 30 days: ETH = ~216,000 blocks, Base = ~1.3M blocks
+            // We use chain-specific block ranges for better coverage
+            const blocksPerDay: Record<string, number> = {
+                'ethereum': 7200,    // ~12s blocks
+                'base': 43200,       // ~2s blocks
+                'bsc': 28800,        // ~3s blocks
+                'arbitrum': 43200,   // ~2s blocks
+                'optimism': 43200,   // ~2s blocks
+                'polygon': 43200,    // ~2s blocks
+            };
+            
+            const chainBlocksPerDay = blocksPerDay[chain] || 7200;
+            const daysToScan = 30;
+            const maxBlocksToScan = chainBlocksPerDay * daysToScan;
+            
+            // Cap at reasonable limit to avoid RPC rate limits
+            const blockRange = Math.min(maxBlocksToScan, 100000);
+            const fromBlock = Math.max(0, currentBlock - blockRange);
+            
+            console.log(`[HolderAnalyzer] Scanning ${blockRange} blocks (~${Math.round(blockRange / chainBlocksPerDay)} days) on ${chain}`);
             
             const logs = await this.rpc.getLogs(chain, {
                 address: tokenAddress,

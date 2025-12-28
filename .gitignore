@@ -17,6 +17,7 @@ out/
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 
@@ -64,12 +65,35 @@ private\ keys.txt
 *.onnx
 *.key
 models/model.compiled
-models/*.json
-!models/settings.json
-!models/calibration.json
+models/proof.json
+models/witness.json
+models/test_input.json
+models/input_*.json
+models/witness_*.json
 
 # Unused project files
 3d-quantum-neural-network/
+3d-quantum-neural-network.zip
 capx hackathon
 Mosaic_Protocol_Icon_#4__3D_Isometric_Agent_Cubes.png
 Mosaic Protocol.pptx
+neural_network_component.jsx
+
+# Images and media
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.pptx
+*.zip
+image.png
+
+# ML training data (large files)
+ml-training/
+
+# Backend data directory
+backend/data/
+
+# TSBuildInfo (generated)
+*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo

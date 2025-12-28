@@ -9,6 +9,57 @@ import { getRPCManager } from '../../onchain/core/rpc.js';
 import { DEX_CONFIGS, DexConfig, LOCK_CONTRACTS, isLockContract, isKnownSafeToken } from '../data/patterns.js';
 
 // ============================================================================
+// ETH PRICE CACHE
+// ============================================================================
+
+interface PriceCache {
+    price: number;
+    timestamp: number;
+}
+
+const ETH_PRICE_CACHE: Record<string, PriceCache> = {};
+const PRICE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const DEFAULT_ETH_PRICE = 3000; // Fallback if all fetches fail
+
+/**
+ * Get ETH price with caching and fallback
+ */
+async function getETHPrice(chain: string = 'ethereum'): Promise<number> {
+    const cacheKey = chain;
+    const cached = ETH_PRICE_CACHE[cacheKey];
+    
+    // Return cached price if still valid
+    if (cached && Date.now() - cached.timestamp < PRICE_CACHE_TTL) {
+        return cached.price;
+    }
+    
+    // Try CoinGecko API
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
+        
+        const response = await fetch(
+            'https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd',
+            { signal: controller.signal }
+        );
+        clearTimeout(timeout);
+        
+        if (response.ok) {
+            const data = await response.json();
+            const price = data.ethereum?.usd || DEFAULT_ETH_PRICE;
+            ETH_PRICE_CACHE[cacheKey] = { price, timestamp: Date.now() };
+            console.log(`[LiquidityAnalyzer] ETH price from CoinGecko: $${price}`);
+            return price;
+        }
+    } catch (e) {
+        console.warn(`[LiquidityAnalyzer] CoinGecko price fetch failed, using cached/default`);
+    }
+    
+    // Return cached price even if stale, or default
+    return cached?.price || DEFAULT_ETH_PRICE;
+}
+
+// ============================================================================
 // TYPES
 // ============================================================================
 
@@ -81,6 +132,34 @@ const BURN_ADDRESSES = [
     '0x0000000000000000000000000000000000000000',
     '0x0000000000000000000000000000000000000001',
 ];
+
+// ============================================================================
+// LOCK CONTRACT ABIs (P1: Lock time verification)
+// ============================================================================
+
+const UNICRYPT_LOCK_ABI = [
+    'function getLocksForToken(address lpToken, uint256 start, uint256 count) view returns (tuple(uint256 lockId, address owner, uint256 amount, uint256 lockDate, uint256 unlockDate)[])',
+    'function tokenLocks(address lpToken, uint256 index) view returns (uint256 lockId, address owner, uint256 amount, uint256 lockDate, uint256 unlockDate)',
+    'function getNumLocksForToken(address lpToken) view returns (uint256)',
+];
+
+const TEAM_FINANCE_LOCK_ABI = [
+    'function getDepositsByTokenAddress(address token) view returns (tuple(uint256 id, address tokenAddress, address withdrawalAddress, uint256 tokenAmount, uint256 unlockTime, bool withdrawn)[])',
+];
+
+const PINKLOCK_ABI = [
+    'function getLocksForToken(address token, uint256 start, uint256 count) view returns (tuple(uint256 id, address owner, uint256 amount, uint256 lockDate, uint256 unlockDate)[])',
+    'function cumulativeLockInfo(address token) view returns (uint256 amount, uint256 count)',
+];
+
+interface LockInfo {
+    lockContract: string;
+    lockName: string;
+    amount: bigint;
+    unlockDate: number;  // Unix timestamp
+    daysUntilUnlock: number;
+    isExpired: boolean;
+}
 
 // ============================================================================
 // LIQUIDITY ANALYZER
@@ -170,8 +249,8 @@ export class LiquidityAnalyzer {
             wethReserve = tokenIsToken0 ? reserves[1] : reserves[0];
         }
         
-        // Estimate USD value (rough: assume ETH = $3000)
-        const ethPrice = 3000;
+        // Estimate USD value using real-time ETH price
+        const ethPrice = await getETHPrice(chain);
         const liquidityUSD = Number(ethers.formatEther(wethReserve)) * ethPrice * 2;
         
         // Get LP token holders
@@ -399,6 +478,142 @@ export class LiquidityAnalyzer {
         }
         
         return distribution;
+    }
+    
+    /**
+     * P1: Verify lock expiry times for LP tokens
+     * Queries lock contracts to get actual unlock dates
+     */
+    async verifyLockExpiry(chain: string, pairAddress: string): Promise<LockInfo[]> {
+        const provider = this.rpc.getProvider(chain);
+        const locks: LockInfo[] = [];
+        const now = Math.floor(Date.now() / 1000);
+        
+        // Try Unicrypt
+        for (const unicryptAddr of LOCK_CONTRACTS.unicrypt?.addresses || []) {
+            try {
+                const lockContract = new Contract(unicryptAddr, UNICRYPT_LOCK_ABI, provider);
+                const numLocks = await lockContract.getNumLocksForToken(pairAddress);
+                
+                if (numLocks > 0n) {
+                    const lockData = await lockContract.getLocksForToken(pairAddress, 0, Math.min(Number(numLocks), 10));
+                    
+                    for (const lock of lockData) {
+                        const unlockDate = Number(lock.unlockDate);
+                        const daysUntilUnlock = Math.floor((unlockDate - now) / 86400);
+                        
+                        locks.push({
+                            lockContract: unicryptAddr,
+                            lockName: 'Unicrypt',
+                            amount: lock.amount,
+                            unlockDate,
+                            daysUntilUnlock,
+                            isExpired: unlockDate <= now,
+                        });
+                    }
+                }
+            } catch { /* Unicrypt not available or no locks */ }
+        }
+        
+        // Try Team.Finance
+        for (const teamFinanceAddr of LOCK_CONTRACTS.teamFinance?.addresses || []) {
+            try {
+                const lockContract = new Contract(teamFinanceAddr, TEAM_FINANCE_LOCK_ABI, provider);
+                const deposits = await lockContract.getDepositsByTokenAddress(pairAddress);
+                
+                for (const deposit of deposits) {
+                    if (deposit.withdrawn) continue;
+                    
+                    const unlockDate = Number(deposit.unlockTime);
+                    const daysUntilUnlock = Math.floor((unlockDate - now) / 86400);
+                    
+                    locks.push({
+                        lockContract: teamFinanceAddr,
+                        lockName: 'Team.Finance',
+                        amount: deposit.tokenAmount,
+                        unlockDate,
+                        daysUntilUnlock,
+                        isExpired: unlockDate <= now,
+                    });
+                }
+            } catch { /* Team.Finance not available or no locks */ }
+        }
+        
+        // Try PinkLock
+        for (const pinkLockAddr of LOCK_CONTRACTS.pinkLock?.addresses || []) {
+            try {
+                const lockContract = new Contract(pinkLockAddr, PINKLOCK_ABI, provider);
+                const [, count] = await lockContract.cumulativeLockInfo(pairAddress);
+                
+                if (count > 0n) {
+                    const lockData = await lockContract.getLocksForToken(pairAddress, 0, Math.min(Number(count), 10));
+                    
+                    for (const lock of lockData) {
+                        const unlockDate = Number(lock.unlockDate);
+                        const daysUntilUnlock = Math.floor((unlockDate - now) / 86400);
+                        
+                        locks.push({
+                            lockContract: pinkLockAddr,
+                            lockName: 'PinkLock',
+                            amount: lock.amount,
+                            unlockDate,
+                            daysUntilUnlock,
+                            isExpired: unlockDate <= now,
+                        });
+                    }
+                }
+            } catch { /* PinkLock not available or no locks */ }
+        }
+        
+        return locks;
+    }
+    
+    /**
+     * P1: Get lock risk assessment based on expiry times
+     */
+    assessLockRisk(locks: LockInfo[], totalSupply: bigint): { risk: number; warnings: string[] } {
+        const warnings: string[] = [];
+        let risk = 0;
+        
+        if (locks.length === 0) {
+            return { risk: 0, warnings: ['No verified locks found in known lock contracts'] };
+        }
+        
+        const now = Math.floor(Date.now() / 1000);
+        let totalLockedAmount = 0n;
+        let shortestLockDays = Infinity;
+        let expiredLocks = 0;
+        
+        for (const lock of locks) {
+            totalLockedAmount += lock.amount;
+            
+            if (lock.isExpired) {
+                expiredLocks++;
+                risk += 20;
+                warnings.push(`⚠️ ${lock.lockName} lock EXPIRED - LP can be withdrawn!`);
+            } else if (lock.daysUntilUnlock < 30) {
+                risk += 15;
+                warnings.push(`⚠️ ${lock.lockName} lock expires in ${lock.daysUntilUnlock} days`);
+                shortestLockDays = Math.min(shortestLockDays, lock.daysUntilUnlock);
+            } else if (lock.daysUntilUnlock < 90) {
+                risk += 5;
+                warnings.push(`${lock.lockName} lock expires in ${lock.daysUntilUnlock} days`);
+                shortestLockDays = Math.min(shortestLockDays, lock.daysUntilUnlock);
+            } else {
+                shortestLockDays = Math.min(shortestLockDays, lock.daysUntilUnlock);
+            }
+        }
+        
+        // Calculate locked percentage
+        const lockedPercent = totalSupply > 0n ? Number((totalLockedAmount * 10000n) / totalSupply) / 100 : 0;
+        
+        if (lockedPercent > 80 && shortestLockDays > 180) {
+            warnings.unshift(`✅ ${lockedPercent.toFixed(1)}% LP locked for ${shortestLockDays}+ days`);
+        } else if (lockedPercent > 50 && shortestLockDays > 90) {
+            warnings.unshift(`${lockedPercent.toFixed(1)}% LP locked for ${shortestLockDays}+ days`);
+        }
+        
+        return { risk: Math.min(risk, 50), warnings };
     }
     
     /**

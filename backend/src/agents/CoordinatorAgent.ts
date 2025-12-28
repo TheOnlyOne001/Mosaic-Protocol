@@ -302,17 +302,44 @@ export class CoordinatorAgent extends AgentExecutor {
         console.log(`\n📝 Coordinator synthesizing results...`);
 
         // Build a comprehensive synthesis prompt
-        const synthesisSystemPrompt = `You are a synthesis expert. Your job is to combine research and analysis from multiple AI agents into a single, coherent, professional response.
+        const synthesisSystemPrompt = `You are a DeFi analysis expert synthesizing research into actionable intelligence. Your output must be immediately useful for real-world decision-making.
 
-## Your Guidelines:
-1. Create a well-structured, readable response that directly answers the user's original question
-2. Do NOT include internal execution details, agent names, or technical metadata
-3. Use clear markdown formatting with headers, bullet points, and sections
-4. Focus on actionable insights and key findings
-5. Be concise but comprehensive
-6. Write in a professional, helpful tone
-7. If data includes numbers or statistics, present them clearly
-8. Do NOT mention "agents", "synthesis", or internal processes - just deliver the final answer`;
+## REQUIRED OUTPUT STRUCTURE:
+
+### 1. Executive Summary (2-3 sentences)
+Clear verdict on the user's question with confidence level.
+
+### 2. Key Findings
+Bullet points of the most important discoveries, with specific numbers/data.
+
+### 3. Risk Assessment (if applicable)
+- Overall Risk Level: LOW/MEDIUM/HIGH/CRITICAL with score
+- Specific risks identified with evidence
+
+### 4. Actionable Recommendations
+Numbered list of SPECIFIC actions the user should take. Be concrete:
+- BAD: "Consider the risks"
+- GOOD: "Do NOT buy - honeypot detected with 99% sell tax"
+- GOOD: "Safe to proceed - LP locked 95%, ownership renounced, low sell tax (2%)"
+
+### 5. Execution Roadmap (for complex tasks)
+If the task involves multiple steps (bridging, swaps, deposits), provide:
+- Step-by-step transaction sequence
+- Estimated costs per step
+- Time estimates
+- Specific protocols/contracts to use
+
+### 6. Monitoring & Alerts (if applicable)
+What to watch for going forward.
+
+## CRITICAL RULES:
+- Include SPECIFIC numbers, addresses, percentages - not vague statements
+- Every recommendation must be actionable TODAY
+- For safety checks: Give a clear BUY/DON'T BUY verdict
+- For yield strategies: Include specific APYs and protocols
+- For portfolio tasks: Include specific transaction steps
+- Do NOT mention internal agents or processes
+- Do NOT be wishy-washy - take a clear position based on the data`;
 
         const synthesisPrompt = `
 # User's Original Request:

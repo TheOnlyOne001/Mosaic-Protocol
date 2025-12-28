@@ -44,17 +44,28 @@ export function useSocket() {
     }, []);
 
     useEffect(() => {
+        let reconnectTimeout: NodeJS.Timeout | null = null;
+        let isUnmounted = false;
+
         const connect = () => {
+            if (isUnmounted) return;
+            
             try {
                 const wsUrl = getWsUrl();
+                console.log('🔌 Connecting to WebSocket:', wsUrl);
                 const ws = new WebSocket(wsUrl);
 
                 ws.onopen = () => {
+                    if (isUnmounted) {
+                        ws.close();
+                        return;
+                    }
                     console.log('🔌 WebSocket connected');
                     setIsConnected(true);
                 };
 
                 ws.onmessage = (event) => {
+                    if (isUnmounted) return;
                     try {
                         const data = JSON.parse(event.data) as WSEvent;
                         setLastEvent(data);
@@ -67,8 +78,10 @@ export function useSocket() {
                 ws.onclose = () => {
                     console.log('🔌 WebSocket disconnected');
                     setIsConnected(false);
-                    // Reconnect after 2 seconds
-                    setTimeout(connect, 2000);
+                    if (!isUnmounted) {
+                        // Reconnect after 2 seconds
+                        reconnectTimeout = setTimeout(connect, 2000);
+                    }
                 };
 
                 ws.onerror = (error) => {
@@ -78,13 +91,19 @@ export function useSocket() {
                 wsRef.current = ws;
             } catch (error) {
                 console.error('Failed to create WebSocket:', error);
-                setTimeout(connect, 2000);
+                if (!isUnmounted) {
+                    reconnectTimeout = setTimeout(connect, 2000);
+                }
             }
         };
 
         connect();
 
         return () => {
+            isUnmounted = true;
+            if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout);
+            }
             wsRef.current?.close();
         };
     }, []);

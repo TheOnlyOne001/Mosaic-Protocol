@@ -14,6 +14,11 @@ export const CHAIN_CONFIGS: Record<string, { chainId: number; rpcUrl: string; we
         rpcUrl: 'https://mainnet.base.org',
         weth: '0x4200000000000000000000000000000000000006',
     },
+    base_sepolia: {
+        chainId: 84532,
+        rpcUrl: 'https://sepolia.base.org',
+        weth: '0x4200000000000000000000000000000000000006', // Same predeploy address
+    },
     ethereum: {
         chainId: 1,
         rpcUrl: 'https://eth.llamarpc.com',
@@ -31,6 +36,34 @@ export const CHAIN_CONFIGS: Record<string, { chainId: number; rpcUrl: string; we
     },
 };
 
+// RPC URLs with fallbacks for failover support (Phase 4)
+export const RPC_URLS: Record<string, string[]> = {
+    base: [
+        'https://mainnet.base.org',
+        'https://base.llamarpc.com',
+        'https://1rpc.io/base',
+    ],
+    base_sepolia: [
+        'https://sepolia.base.org',
+        'https://base-sepolia.blockpi.network/v1/rpc/public',
+    ],
+    ethereum: [
+        'https://eth.llamarpc.com',
+        'https://ethereum.publicnode.com',
+        'https://1rpc.io/eth',
+    ],
+    arbitrum: [
+        'https://arb1.arbitrum.io/rpc',
+        'https://arbitrum.llamarpc.com',
+        'https://1rpc.io/arb',
+    ],
+    optimism: [
+        'https://mainnet.optimism.io',
+        'https://optimism.llamarpc.com',
+        'https://1rpc.io/op',
+    ],
+};
+
 // ============================================================================
 // TOKEN ADDRESSES
 // ============================================================================
@@ -41,6 +74,11 @@ export const TOKEN_ADDRESSES: Record<string, Record<string, string>> = {
         USDC: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
         DAI: '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb',
         cbETH: '0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22',
+    },
+    base_sepolia: {
+        WETH: '0x4200000000000000000000000000000000000006',
+        USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e', // Base Sepolia USDC
+        // Note: Limited testnet tokens available
     },
     ethereum: {
         WETH: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
@@ -65,6 +103,11 @@ export const DEX_ROUTERS: Record<string, Record<string, string>> = {
         uniswap_v3: '0x2626664c2603336E57B271c5C0b26F421741e481',
         uniswap_v2: '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24',
         aerodrome: '0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43',
+    },
+    base_sepolia: {
+        // Uniswap V2 style router for testnet
+        uniswap_v2: '0x8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb',
+        // Note: Limited DEX availability on testnet
     },
     ethereum: {
         uniswap_v3: '0xE592427A0AEce92De3Edee1F18E0157C05861564',
@@ -196,6 +239,10 @@ export function getChainId(chain: string): number {
 
 export function getRpcUrl(chain: string): string {
     return CHAIN_CONFIGS[chain]?.rpcUrl || '';
+}
+
+export function getRpcUrls(chain: string): string[] {
+    return RPC_URLS[chain] || [getRpcUrl(chain)].filter(Boolean);
 }
 
 export function getWethAddress(chain: string): string {

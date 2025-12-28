@@ -482,6 +482,83 @@ export const WORKFLOW_TEMPLATES = {
             }
         ]
     ),
+
+    /**
+     * DeFi Power User Strategy: Complete multi-chain portfolio management
+     * Handles: Position discovery, risk assessment, yield optimization, bridging, monitoring
+     */
+    defiPowerUserStrategy: (userAddress: string, chains: string[] = ['ethereum', 'base', 'arbitrum']): ParallelPlan => createParallelPlan(
+        'DeFi Power User Strategy',
+        [
+            // Stage 1: Discover all positions across chains in parallel
+            {
+                agents: chains.map(chain => ({
+                    capability: 'portfolio_analysis',
+                    action: 'discover_positions',
+                    params: { address: userAddress, chain }
+                })),
+                mergeStrategy: 'aggregate'
+            },
+            // Stage 2: Parallel risk + yield + bridge analysis
+            {
+                agents: [
+                    { capability: 'liquidation_protection', action: 'check_health', params: { address: userAddress } },
+                    { capability: 'yield_optimization', action: 'find_best_yield', params: { token: 'USDC', chains } },
+                    { capability: 'yield_optimization', action: 'find_best_yield', params: { token: 'ETH', chains } },
+                    { capability: 'cross_chain_bridging', action: 'compare_routes', params: { chains } },
+                ],
+                waitFor: ['stage-1'],
+                mergeStrategy: 'aggregate'
+            },
+            // Stage 3: Build execution plan + set up monitoring
+            {
+                agents: [
+                    { capability: 'autonomous_execution', action: 'compose_strategy', params: { 
+                        intent: 'consolidate_and_optimize',
+                        riskProfile: { conservative: 0.4, moderate: 0.35, aggressive: 0.25 }
+                    }},
+                    { capability: 'on_chain_monitoring', action: 'set_alert', params: { 
+                        type: 'health_factor', 
+                        condition: { minHealthFactor: 1.5 } 
+                    }},
+                ],
+                waitFor: ['stage-2'],
+                mergeStrategy: 'aggregate'
+            }
+        ],
+        { timeout: 120000 }
+    ),
+
+    /**
+     * Comprehensive Token Safety Check
+     * Full analysis with actionable verdict
+     */
+    tokenSafetyCheck: (tokenAddress: string, chain: string = 'base'): ParallelPlan => createParallelPlan(
+        'Token Safety Check',
+        [
+            // Stage 1: All safety checks in parallel
+            {
+                agents: [
+                    { capability: 'token_safety_analysis', action: 'full_analysis', params: { tokenAddress, chain } },
+                    { capability: 'onchain_analysis', action: 'check_contract', params: { address: tokenAddress, chain } },
+                    { capability: 'dex_aggregation', action: 'get_liquidity', params: { token: tokenAddress, chain } },
+                ],
+                mergeStrategy: 'aggregate'
+            },
+            // Stage 2: Generate actionable verdict
+            {
+                agents: [
+                    { capability: 'analysis', action: 'synthesize_verdict', params: { 
+                        outputFormat: 'actionable',
+                        requireVerdict: true,
+                        includeEvidence: true
+                    }}
+                ],
+                waitFor: ['stage-1'],
+                mergeStrategy: 'first_success'
+            }
+        ]
+    ),
 };
 
 // All types are exported at definition

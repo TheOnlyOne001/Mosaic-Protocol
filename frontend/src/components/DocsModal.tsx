@@ -33,7 +33,7 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
   const renderContent = (content: string) => {
     return content.split('\n').map((line, i) => {
       if (!line.trim()) return <div key={i} className="h-2" />;
-      
+
       if (line.startsWith('###')) {
         return <h4 key={i} className="text-sm font-semibold text-white/90 mt-6 mb-2">{line.replace(/^###\s*/, '')}</h4>;
       }
@@ -43,16 +43,16 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
       if (line.startsWith('#')) {
         return <h2 key={i} className="text-xl font-bold text-white mt-8 mb-4">{line.replace(/^#\s*/, '')}</h2>;
       }
-      
+
       if (line.startsWith('```')) {
         const isEnd = line === '```';
         return <div key={i} className={isEnd ? 'mb-4' : 'mt-2'} />;
       }
-      
+
       if (line.startsWith('**') && line.endsWith('**')) {
         return <p key={i} className="text-sm font-semibold text-white/90 mb-2">{line.replace(/\*\*/g, '')}</p>;
       }
-      
+
       if (line.startsWith('- ') || line.startsWith('* ')) {
         return (
           <div key={i} className="flex gap-2 mb-1.5 ml-4">
@@ -61,7 +61,7 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
           </div>
         );
       }
-      
+
       if (line.trim().startsWith('`') && line.trim().endsWith('`')) {
         return (
           <code key={i} className="block bg-white/5 border border-white/10 rounded px-3 py-2 text-xs font-mono text-cyan-300 my-2">
@@ -69,25 +69,27 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
           </code>
         );
       }
-      
+
       return <p key={i} className="text-sm text-white/60 leading-relaxed mb-2">{line}</p>;
     });
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      
-      <div 
-        className="relative w-full max-w-6xl h-[85vh] flex rounded-2xl overflow-hidden shadow-2xl"
+      <div className="absolute inset-0 glass-modal-backdrop animate-fade-in" />
+
+      <div
+        className="relative w-full max-w-6xl h-[85vh] flex overflow-hidden animate-modal-enter"
         style={{
           background: 'linear-gradient(180deg, rgba(10,10,15,0.95) 0%, rgba(5,5,8,0.98) 100%)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '20px',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Left Sidebar - Navigation */}
-        <div 
+        <div
           className="w-72 border-r border-white/10 flex flex-col"
           style={{ background: 'rgba(0,0,0,0.3)' }}
         >
@@ -102,7 +104,7 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
                 <p className="text-xs text-white/40">Mosaic Protocol</p>
               </div>
             </div>
-            
+
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
@@ -122,7 +124,7 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
               {DOCS_SECTIONS.map((section) => {
                 const Icon = ICON_MAP[section.icon];
                 const isActive = selectedSection === section.id;
-                
+
                 return (
                   <div key={section.id}>
                     <button
@@ -130,28 +132,26 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
                         setSelectedSection(section.id);
                         setSelectedSubsection(section.subsections[0].id);
                       }}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
-                        isActive 
-                          ? 'bg-orange-500/15 text-white border border-orange-500/30' 
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${isActive
+                          ? 'bg-orange-500/15 text-white border border-orange-500/30'
                           : 'text-white/60 hover:bg-white/5 hover:text-white/80'
-                      }`}
+                        }`}
                     >
                       <Icon className="w-4 h-4" />
                       <span className="text-sm font-medium flex-1 text-left">{section.title}</span>
                       <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isActive ? 'rotate-90' : ''}`} />
                     </button>
-                    
+
                     {isActive && (
                       <div className="ml-7 mt-1 space-y-0.5">
                         {section.subsections.map((sub) => (
                           <button
                             key={sub.id}
                             onClick={() => setSelectedSubsection(sub.id)}
-                            className={`w-full text-left px-3 py-1.5 rounded text-xs transition-all ${
-                              selectedSubsection === sub.id
+                            className={`w-full text-left px-3 py-1.5 rounded text-xs transition-all ${selectedSubsection === sub.id
                                 ? 'text-orange-400 bg-orange-500/10'
                                 : 'text-white/50 hover:text-white/70 hover:bg-white/5'
-                            }`}
+                              }`}
                           >
                             {sub.title}
                           </button>
@@ -202,7 +202,7 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
               onClick={() => {
                 const currentSectionIndex = DOCS_SECTIONS.findIndex(s => s.id === selectedSection);
                 const currentSubIndex = currentSection?.subsections.findIndex(ss => ss.id === selectedSubsection) || 0;
-                
+
                 if (currentSubIndex > 0) {
                   setSelectedSubsection(currentSection!.subsections[currentSubIndex - 1].id);
                 } else if (currentSectionIndex > 0) {
@@ -217,12 +217,12 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
               <ChevronRight className="w-4 h-4 rotate-180" />
               Previous
             </button>
-            
+
             <button
               onClick={() => {
                 const currentSectionIndex = DOCS_SECTIONS.findIndex(s => s.id === selectedSection);
                 const currentSubIndex = currentSection?.subsections.findIndex(ss => ss.id === selectedSubsection) || 0;
-                
+
                 if (currentSubIndex < (currentSection?.subsections.length || 0) - 1) {
                   setSelectedSubsection(currentSection!.subsections[currentSubIndex + 1].id);
                 } else if (currentSectionIndex < DOCS_SECTIONS.length - 1) {
@@ -233,7 +233,7 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
               }}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-all disabled:opacity-30"
               disabled={
-                selectedSection === DOCS_SECTIONS[DOCS_SECTIONS.length - 1].id && 
+                selectedSection === DOCS_SECTIONS[DOCS_SECTIONS.length - 1].id &&
                 selectedSubsection === DOCS_SECTIONS[DOCS_SECTIONS.length - 1].subsections[DOCS_SECTIONS[DOCS_SECTIONS.length - 1].subsections.length - 1].id
               }
             >

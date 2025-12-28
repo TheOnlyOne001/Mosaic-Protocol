@@ -6,11 +6,11 @@
  * retries, and state management.
  */
 
-import { 
-    Contract, 
-    JsonRpcProvider, 
-    Wallet, 
-    TransactionResponse, 
+import {
+    Contract,
+    JsonRpcProvider,
+    Wallet,
+    TransactionResponse,
     TransactionReceipt,
     formatUnits,
     parseUnits,
@@ -26,6 +26,7 @@ import {
 } from '../types.js';
 import { getSlippageProtector } from './slippageProtector.js';
 import { getPriceDataProvider } from './priceDataProvider.js';
+import { getNonceManager } from './nonceManager.js';
 import { getRpcUrl, getChainId } from '../data/protocols.js';
 import {
     buildApprovalTx,
@@ -52,6 +53,7 @@ export interface TransactionToSign {
     value: bigint;
     gasLimit: bigint;
     chainId: number;
+    nonce: number;  // Managed by NonceManager
     description: string;
     estimatedGasUSD: number;
 }
@@ -142,7 +144,7 @@ export class ExecutionEngine extends EventEmitter {
     }
 
     /**
-     * Get provider for chain
+     * Get provider for chain (with failover support)
      */
     private getProvider(chain: string): JsonRpcProvider {
         if (!this.providers.has(chain)) {
@@ -155,12 +157,176 @@ export class ExecutionEngine extends EventEmitter {
     }
 
     /**
+     * Get a working provider with failover (Phase 4)
+     * Tries each RPC in sequence until one responds
+     */
+    async getWorkingProvider(chain: string): Promise<JsonRpcProvider> {
+        // Try cached provider first
+        const cached = this.providers.get(chain);
+        if (cached) {
+            try {
+                await Promise.race([
+                    cached.getBlockNumber(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+                ]);
+                return cached;
+            } catch {
+                console.log(`[ExecutionEngine] Cached RPC for ${chain} failed, trying fallbacks...`);
+                this.providers.delete(chain);
+            }
+        }
+
+        // Import dynamically to avoid circular deps
+        const { getRpcUrls } = await import('../data/protocols.js');
+        const rpcUrls = getRpcUrls(chain);
+
+        for (const url of rpcUrls) {
+            try {
+                const provider = new JsonRpcProvider(url);
+                // Health check with timeout
+                await Promise.race([
+                    provider.getBlockNumber(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+                ]);
+
+                console.log(`[ExecutionEngine] Using RPC for ${chain}: ${url.slice(0, 30)}...`);
+                this.providers.set(chain, provider);
+                return provider;
+            } catch (error) {
+                console.log(`[ExecutionEngine] RPC failed: ${url.slice(0, 30)}...`);
+                continue;
+            }
+        }
+
+        throw new Error(`No working RPC found for ${chain}. Tried ${rpcUrls.length} endpoints.`);
+    }
+
+    /**
      * Set server wallet for autonomous execution
      */
     setServerWallet(privateKey: string, chain: string): void {
         const provider = this.getProvider(chain);
         this.serverWallet = new Wallet(privateKey, provider);
         console.log(`[ExecutionEngine] Server wallet set: ${this.serverWallet.address.slice(0, 10)}...`);
+    }
+
+    // ========================================================================
+    // PRE-EXECUTION VALIDATION (Phase 3)
+    // ========================================================================
+
+    /**
+     * Validate that execution can proceed before starting
+     * Checks: token balances, ETH for gas, contract existence
+     */
+    async validateBeforeExecution(plan: ExecutionPlan): Promise<{
+        valid: boolean;
+        issues: Array<{ type: string; message: string; fatal: boolean }>;
+        estimatedGasCost: bigint;
+        requiredTokens: Map<string, bigint>;
+    }> {
+        const provider = this.getProvider(plan.chain);
+        const issues: Array<{ type: string; message: string; fatal: boolean }> = [];
+        const requiredTokens = new Map<string, bigint>();
+        let estimatedGasCost = 0n;
+
+        console.log(`[ExecutionEngine] Validating execution for ${plan.name}...`);
+
+        // 1. Check user address is valid
+        if (!plan.userAddress || plan.userAddress === '0x0000000000000000000000000000000000000000') {
+            issues.push({ type: 'address', message: 'Invalid user address', fatal: true });
+            return { valid: false, issues, estimatedGasCost, requiredTokens };
+        }
+
+        // 2. Get ETH balance for gas
+        let ethBalance: bigint;
+        try {
+            ethBalance = await provider.getBalance(plan.userAddress);
+        } catch (error) {
+            issues.push({ type: 'rpc', message: 'Failed to fetch ETH balance', fatal: true });
+            return { valid: false, issues, estimatedGasCost, requiredTokens };
+        }
+
+        // 3. Calculate total estimated gas cost
+        const gasData = await this.priceProvider.getGasPrice(plan.chain);
+        for (const step of plan.steps) {
+            if (step.type !== 'wait') {
+                estimatedGasCost += gasData.gasPrice * BigInt(step.estimatedGas);
+            }
+        }
+
+        // Add 20% buffer for gas estimation variance
+        const gasWithBuffer = estimatedGasCost + (estimatedGasCost * 20n) / 100n;
+
+        if (ethBalance < gasWithBuffer) {
+            issues.push({
+                type: 'gas',
+                message: `Insufficient ETH for gas. Need ~${formatUnits(gasWithBuffer, 18)} ETH, have ${formatUnits(ethBalance, 18)} ETH`,
+                fatal: true,
+            });
+        }
+
+        // 4. Calculate required input tokens from steps
+        for (const step of plan.steps) {
+            const params = step.params as any;
+
+            if (step.type === 'swap' && params.amountIn) {
+                const tokenKey = params.tokenInSymbol || params.tokenIn || 'UNKNOWN';
+                const current = requiredTokens.get(tokenKey) || 0n;
+                requiredTokens.set(tokenKey, current + BigInt(params.amountIn));
+            } else if (step.type === 'deposit' && params.amount) {
+                const tokenKey = params.tokenSymbol || params.token || 'UNKNOWN';
+                const current = requiredTokens.get(tokenKey) || 0n;
+                requiredTokens.set(tokenKey, current + BigInt(params.amount));
+            } else if (step.type === 'bridge' && params.amount) {
+                const tokenKey = params.tokenSymbol || params.token || 'UNKNOWN';
+                const current = requiredTokens.get(tokenKey) || 0n;
+                requiredTokens.set(tokenKey, current + BigInt(params.amount));
+            }
+        }
+
+        // 5. Check token balances (simplified - checks ERC20 balances)
+        for (const [tokenSymbol, required] of requiredTokens) {
+            // Skip ETH/WETH native checks (already checked above)
+            if (tokenSymbol === 'ETH' || tokenSymbol === 'WETH') continue;
+
+            try {
+                // Get token address from protocols
+                const { getTokenAddress } = await import('../data/protocols.js');
+                const tokenAddress = getTokenAddress(plan.chain, tokenSymbol);
+
+                if (tokenAddress) {
+                    const erc20 = new Contract(tokenAddress, [
+                        'function balanceOf(address) view returns (uint256)'
+                    ], provider);
+                    const balance = await erc20.balanceOf(plan.userAddress);
+
+                    if (balance < required) {
+                        const decimals = ['USDC', 'USDT'].includes(tokenSymbol) ? 6 : 18;
+                        issues.push({
+                            type: 'balance',
+                            message: `Insufficient ${tokenSymbol}. Need ${formatUnits(required, decimals)}, have ${formatUnits(balance, decimals)}`,
+                            fatal: true,
+                        });
+                    }
+                }
+            } catch (error) {
+                issues.push({
+                    type: 'balance',
+                    message: `Could not verify ${tokenSymbol} balance`,
+                    fatal: false,
+                });
+            }
+        }
+
+        const valid = !issues.some(i => i.fatal);
+
+        if (valid) {
+            console.log(`[ExecutionEngine] Validation passed ✅`);
+        } else {
+            console.log(`[ExecutionEngine] Validation failed ❌ - ${issues.filter(i => i.fatal).length} fatal issues`);
+        }
+
+        return { valid, issues, estimatedGasCost: gasWithBuffer, requiredTokens };
     }
 
     // ========================================================================
@@ -235,18 +401,18 @@ export class ExecutionEngine extends EventEmitter {
                     if (result.gasUsed) {
                         totalGasUsed += result.gasUsed;
                     }
-                    this.emit('step:completed', { 
-                        planId: plan.id, 
-                        stepId: step.id, 
-                        txHash: result.txHash 
+                    this.emit('step:completed', {
+                        planId: plan.id,
+                        stepId: step.id,
+                        txHash: result.txHash
                     });
                 } else {
                     state.failedSteps.push(step.id);
                     state.error = result.error;
-                    this.emit('step:failed', { 
-                        planId: plan.id, 
-                        stepId: step.id, 
-                        error: result.error 
+                    this.emit('step:failed', {
+                        planId: plan.id,
+                        stepId: step.id,
+                        error: result.error
                     });
 
                     // Handle failure based on plan's failure mode
@@ -331,7 +497,7 @@ export class ExecutionEngine extends EventEmitter {
 
         // Build transaction
         const txRequest = await this.buildTransaction(step, plan);
-        
+
         // Estimate gas with buffer
         let gasLimit: bigint;
         try {
@@ -349,8 +515,12 @@ export class ExecutionEngine extends EventEmitter {
 
         // Get gas cost estimate
         const gasData = await this.priceProvider.getGasPrice(plan.chain);
-        const estimatedGasUSD = Number(formatUnits(gasData.gasPrice * gasLimit, 18)) * 
+        const estimatedGasUSD = Number(formatUnits(gasData.gasPrice * gasLimit, 18)) *
             (await this.priceProvider.getTokenPrice('ETH', plan.chain)).priceUSD;
+
+        // Allocate nonce from NonceManager
+        const nonceManager = getNonceManager();
+        const nonce = await nonceManager.getNextNonce(plan.chain, plan.userAddress);
 
         // Create transaction to sign
         const txToSign: TransactionToSign = {
@@ -362,6 +532,7 @@ export class ExecutionEngine extends EventEmitter {
             value: txRequest.value,
             gasLimit,
             chainId: txRequest.chainId,
+            nonce,
             description: step.description,
             estimatedGasUSD,
         };
@@ -408,7 +579,7 @@ export class ExecutionEngine extends EventEmitter {
         chain: string
     ): Promise<StepResult> {
         const provider = this.getProvider(chain);
-        
+
         try {
             const receipt = await Promise.race([
                 provider.waitForTransaction(txHash, this.config.confirmations),
@@ -490,7 +661,7 @@ export class ExecutionEngine extends EventEmitter {
     private async handleWaitStep(step: ExecutionStep): Promise<void> {
         const params = step.params as any;
         const waitMinutes = params.estimatedMinutes || 5;
-        
+
         // For bridge waits, we could poll for completion
         // For now, just emit progress updates
         const intervalMs = 30000; // 30 seconds
@@ -500,11 +671,11 @@ export class ExecutionEngine extends EventEmitter {
         while (elapsed < totalMs) {
             await this.delay(Math.min(intervalMs, totalMs - elapsed));
             elapsed += intervalMs;
-            
+
             const progress = Math.min(100, Math.round((elapsed / totalMs) * 100));
-            this.emit('wait:progress', { 
-                stepId: step.id, 
-                progress, 
+            this.emit('wait:progress', {
+                stepId: step.id,
+                progress,
                 elapsed: elapsed / 1000,
                 total: totalMs / 1000,
             });
@@ -547,7 +718,7 @@ export class ExecutionEngine extends EventEmitter {
         signedTx: string
     ): Promise<{ success: boolean; txHash?: string; error?: string }> {
         const request = this.signatureRequests.get(requestId);
-        
+
         if (!request) {
             return { success: false, error: 'Request not found' };
         }
@@ -569,21 +740,21 @@ export class ExecutionEngine extends EventEmitter {
 
             // Broadcast transaction
             const txResponse = await provider.broadcastTransaction(signedTx);
-            
+
             request.status = 'submitted';
             request.txHash = txResponse.hash;
 
-            this.emit('signature:submitted', { 
-                requestId, 
-                txHash: txResponse.hash 
+            this.emit('signature:submitted', {
+                requestId,
+                txHash: txResponse.hash
             });
 
             return { success: true, txHash: txResponse.hash };
         } catch (error) {
             request.status = 'rejected';
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Broadcast failed' 
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Broadcast failed'
             };
         }
     }
@@ -593,7 +764,7 @@ export class ExecutionEngine extends EventEmitter {
      */
     getPendingSignatureRequests(): SignatureRequest[] {
         const pending: SignatureRequest[] = [];
-        
+
         for (const request of this.signatureRequests.values()) {
             if (request.status === 'pending' && Date.now() < request.expiresAt) {
                 pending.push(request);
@@ -636,15 +807,20 @@ export class ExecutionEngine extends EventEmitter {
                     data: tx.data,
                     value: tx.value,
                     gasLimit: tx.gasLimit,
+                    nonce: tx.nonce,  // Use managed nonce
                 });
 
-                console.log(`[ExecutionEngine] Transaction sent: ${txResponse.hash}`);
-                
+                console.log(`[ExecutionEngine] Transaction sent: ${txResponse.hash} (nonce: ${tx.nonce})`);
+
                 return { success: true, txHash: txResponse.hash };
             } catch (error) {
-                return { 
-                    success: false, 
-                    error: error instanceof Error ? error.message : 'Transaction failed' 
+                // Release nonce on failure so it can be reused
+                const nonceManager = getNonceManager();
+                nonceManager.releaseNonce(chain, this.serverWallet.address, tx.nonce);
+
+                return {
+                    success: false,
+                    error: error instanceof Error ? error.message : 'Transaction failed'
                 };
             }
         };
@@ -656,12 +832,12 @@ export class ExecutionEngine extends EventEmitter {
     createFrontendSigner(): SignerFunction {
         return async (tx: TransactionToSign): Promise<SignedTransactionResult> => {
             const requestId = this.createSignatureRequest(tx, tx.planId, tx.stepId);
-            
+
             // Wait for signature or timeout
             return new Promise((resolve) => {
                 const checkInterval = setInterval(() => {
                     const request = this.signatureRequests.get(requestId);
-                    
+
                     if (!request) {
                         clearInterval(checkInterval);
                         resolve({ success: false, error: 'Request lost' });
@@ -725,6 +901,131 @@ export class ExecutionEngine extends EventEmitter {
     }
 
     // ========================================================================
+    // TX REPLACEMENT (Phase 5)
+    // ========================================================================
+
+    /**
+     * Speed up a pending transaction by resubmitting with higher gas
+     */
+    async speedUpTransaction(
+        txHash: string,
+        chain: string,
+        gasPriceMultiplier: number = 1.5
+    ): Promise<{ success: boolean; newTxHash?: string; error?: string }> {
+        if (!this.serverWallet) {
+            return { success: false, error: 'No server wallet configured' };
+        }
+
+        try {
+            const provider = await this.getWorkingProvider(chain);
+            const wallet = this.serverWallet.connect(provider);
+
+            // Get original transaction
+            const originalTx = await provider.getTransaction(txHash);
+            if (!originalTx) {
+                return { success: false, error: 'Transaction not found' };
+            }
+
+            // Check if already mined
+            const receipt = await provider.getTransactionReceipt(txHash);
+            if (receipt) {
+                return { success: false, error: 'Transaction already mined' };
+            }
+
+            // Get current gas price
+            const feeData = await provider.getFeeData();
+            const newMaxFeePerGas = feeData.maxFeePerGas
+                ? (feeData.maxFeePerGas * BigInt(Math.floor(gasPriceMultiplier * 100))) / 100n
+                : undefined;
+            const newMaxPriorityFeePerGas = feeData.maxPriorityFeePerGas
+                ? (feeData.maxPriorityFeePerGas * BigInt(Math.floor(gasPriceMultiplier * 100))) / 100n
+                : undefined;
+
+            // Resubmit with same nonce but higher gas
+            const newTx = await wallet.sendTransaction({
+                to: originalTx.to!,
+                data: originalTx.data,
+                value: originalTx.value,
+                nonce: originalTx.nonce,
+                gasLimit: originalTx.gasLimit,
+                maxFeePerGas: newMaxFeePerGas,
+                maxPriorityFeePerGas: newMaxPriorityFeePerGas,
+            });
+
+            console.log(`[ExecutionEngine] Sped up tx ${txHash.slice(0, 10)}... → ${newTx.hash.slice(0, 10)}...`);
+
+            return { success: true, newTxHash: newTx.hash };
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Speed up failed',
+            };
+        }
+    }
+
+    /**
+     * Cancel a pending transaction by sending 0 ETH to self with same nonce
+     */
+    async cancelTransaction(
+        txHash: string,
+        chain: string,
+        gasPriceMultiplier: number = 2.0
+    ): Promise<{ success: boolean; cancelTxHash?: string; error?: string }> {
+        if (!this.serverWallet) {
+            return { success: false, error: 'No server wallet configured' };
+        }
+
+        try {
+            const provider = await this.getWorkingProvider(chain);
+            const wallet = this.serverWallet.connect(provider);
+
+            // Get original transaction to find nonce
+            const originalTx = await provider.getTransaction(txHash);
+            if (!originalTx) {
+                return { success: false, error: 'Transaction not found' };
+            }
+
+            // Check if already mined
+            const receipt = await provider.getTransactionReceipt(txHash);
+            if (receipt) {
+                return { success: false, error: 'Transaction already mined, cannot cancel' };
+            }
+
+            // Get current gas price with multiplier for replacement
+            const feeData = await provider.getFeeData();
+            const maxFeePerGas = feeData.maxFeePerGas
+                ? (feeData.maxFeePerGas * BigInt(Math.floor(gasPriceMultiplier * 100))) / 100n
+                : undefined;
+            const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas
+                ? (feeData.maxPriorityFeePerGas * BigInt(Math.floor(gasPriceMultiplier * 100))) / 100n
+                : undefined;
+
+            // Send 0 ETH to self with same nonce (cancellation pattern)
+            const cancelTx = await wallet.sendTransaction({
+                to: wallet.address,
+                value: 0n,
+                nonce: originalTx.nonce,
+                gasLimit: 21000n,
+                maxFeePerGas,
+                maxPriorityFeePerGas,
+            });
+
+            console.log(`[ExecutionEngine] Cancelled tx ${txHash.slice(0, 10)}... with ${cancelTx.hash.slice(0, 10)}...`);
+
+            // Confirm nonce was released in NonceManager
+            const nonceManager = getNonceManager();
+            nonceManager.confirmNonce(chain, wallet.address, originalTx.nonce);
+
+            return { success: true, cancelTxHash: cancelTx.hash };
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Cancellation failed',
+            };
+        }
+    }
+
+    // ========================================================================
     // UTILITIES
     // ========================================================================
 
@@ -733,7 +1034,7 @@ export class ExecutionEngine extends EventEmitter {
     }
 
     private timeout(ms: number): Promise<null> {
-        return new Promise((_, reject) => 
+        return new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Timeout')), ms)
         );
     }
@@ -742,6 +1043,7 @@ export class ExecutionEngine extends EventEmitter {
         const chainMap: Record<number, string> = {
             1: 'ethereum',
             8453: 'base',
+            84532: 'base_sepolia',
             42161: 'arbitrum',
             10: 'optimism',
         };
