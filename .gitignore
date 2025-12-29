@@ -97,3 +97,8 @@ backend/data/
 # TSBuildInfo (generated)
 *.tsbuildinfo
 frontend/tsconfig.tsbuildinfo
+# Model files
+*.pkl
+*.joblib
+
+models/input.json

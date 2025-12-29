@@ -28,6 +28,8 @@ export * from './core/auditVerifier.js';
 
 // Priority 4: ML Classification (Phase 4.1)
 export * from './ml/index.js';
+export * from './ml/MLInferenceService.js';
+export * from './core/HybridVulnerabilityDetector.js';
 export * from './analyzers/liquidityAnalyzer.js';
 export * from './analyzers/holderAnalyzer.js';
 export * from './analyzers/riskScorer.js';

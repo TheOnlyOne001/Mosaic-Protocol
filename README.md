@@ -476,4 +476,10 @@ mosaic-protocol/
 
 ## License
 
-MIT
+This project is dual-licensed:
+- **AGPL-3.0** for open-source use
+- **Commercial license** for closed-source/SaaS use
+
+**SPDX-License-Identifier: AGPL-3.0-only**
+
+Contact: **shayanahmad78600@gmail.com** for commercial licensing.
