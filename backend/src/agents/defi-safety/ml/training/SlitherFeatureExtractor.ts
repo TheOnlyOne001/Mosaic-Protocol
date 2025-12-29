@@ -102,6 +102,22 @@ export interface VulnerabilityFeatures {
     max_function_length: number;
     avg_function_length: number;
     inheritance_depth: number;
+
+    // Sequence-based features (14 features) - CEI violation detection
+    seq_call_before_assign: number;       // .call() before state = x (reentrancy)
+    seq_transfer_before_assign: number;   // .transfer() before state = x
+    seq_send_before_assign: number;       // .send() before state = x
+    seq_external_before_require: number;  // external call before require
+    seq_external_in_loop: number;         // external call inside loop
+    seq_call_no_return_check: number;     // .call without checking return
+    seq_send_no_check: number;            // .send() result ignored
+    seq_msg_value_in_loop: number;        // msg.value used in loop
+    seq_balance_before_transfer: number;  // checks balance then transfers
+    seq_state_read_after_call: number;    // reads state after external call
+    seq_delegatecall_no_modifier: number; // delegatecall without modifier
+    seq_selfdestruct_no_require: number;  // selfdestruct without require
+    seq_block_in_condition: number;       // block.timestamp/number in if
+    seq_blockhash_for_random: number;     // blockhash for randomness
 }
 
 // High-risk Slither detectors
@@ -244,6 +260,163 @@ export async function runSlitherOnFile(filePath: string): Promise<SlitherResult>
 }
 
 // ============================================================================
+// SEQUENCE PATTERN EXTRACTION (14 features)
+// Detects CEI violations and dangerous ordering patterns
+// ============================================================================
+
+/**
+ * Extract sequence-based features that detect ordering vulnerabilities
+ * These are critical for reentrancy and CEI violation detection
+ */
+function extractSequencePatterns(sourceCode: string): Partial<VulnerabilityFeatures> {
+    const features: Partial<VulnerabilityFeatures> = {
+        seq_call_before_assign: 0,
+        seq_transfer_before_assign: 0,
+        seq_send_before_assign: 0,
+        seq_external_before_require: 0,
+        seq_external_in_loop: 0,
+        seq_call_no_return_check: 0,
+        seq_send_no_check: 0,
+        seq_msg_value_in_loop: 0,
+        seq_balance_before_transfer: 0,
+        seq_state_read_after_call: 0,
+        seq_delegatecall_no_modifier: 0,
+        seq_selfdestruct_no_require: 0,
+        seq_block_in_condition: 0,
+        seq_blockhash_for_random: 0,
+    };
+
+    const lines = sourceCode.split('\n');
+    let inFunction = false;
+    let hasModifier = false;
+    let hasRequire = false;
+    let hasExternalCall = false;
+    let hasStateChange = false;
+    let inLoop = false;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        const nextLines = lines.slice(i, Math.min(i + 10, lines.length)).join('\n');
+
+        // Function tracking
+        if (/function\s+\w+/.test(line)) {
+            inFunction = true;
+            hasModifier = line.includes('onlyOwner') || line.includes('nonReentrant') ||
+                line.includes('modifier') || line.includes('whenNotPaused');
+            hasRequire = false;
+            hasExternalCall = false;
+            hasStateChange = false;
+        }
+
+        // Loop tracking
+        if (/\b(for|while)\s*\(/.test(line)) {
+            inLoop = true;
+        }
+        if (line === '}' && inLoop) {
+            inLoop = false;
+        }
+
+        // 1. Call before assign (reentrancy)
+        if (/\.call\{?\s*value/.test(line) || /\.call\s*\(/.test(line)) {
+            hasExternalCall = true;
+            const afterCall = lines.slice(i + 1, i + 15).join('\n');
+            if (/\w+\s*(\+|-)?=/.test(afterCall) && !/require|revert|assert/.test(afterCall.split('\n')[0])) {
+                features.seq_call_before_assign!++;
+            }
+            if (!/(bool\s+\w+,?)/.test(line) && !/(success|ok|result)/.test(nextLines)) {
+                features.seq_call_no_return_check!++;
+            }
+            if (inLoop) {
+                features.seq_external_in_loop!++;
+            }
+        }
+
+        // 2. Transfer before assign
+        if (/\.transfer\s*\(/.test(line)) {
+            hasExternalCall = true;
+            const afterTransfer = lines.slice(i + 1, i + 10).join('\n');
+            if (/\[\w+\]\s*(\+|-)?=/.test(afterTransfer)) {
+                features.seq_transfer_before_assign!++;
+            }
+            if (inLoop) {
+                features.seq_external_in_loop!++;
+            }
+        }
+
+        // 3. Send before assign
+        if (/\.send\s*\(/.test(line)) {
+            hasExternalCall = true;
+            const afterSend = lines.slice(i + 1, i + 10).join('\n');
+            if (/\[\w+\]\s*(\+|-)?=/.test(afterSend)) {
+                features.seq_send_before_assign!++;
+            }
+            if (!/(require|if|bool)/.test(line) && !/(require|if)/.test(lines[i + 1] || '')) {
+                features.seq_send_no_check!++;
+            }
+        }
+
+        // 4. External before require
+        if (hasExternalCall && /require\s*\(/.test(line) && !hasRequire) {
+            features.seq_external_before_require!++;
+        }
+        if (/require\s*\(/.test(line)) {
+            hasRequire = true;
+        }
+
+        // 5. msg.value in loop
+        if (inLoop && /msg\.value/.test(line)) {
+            features.seq_msg_value_in_loop!++;
+        }
+
+        // 6. Balance then transfer
+        if (/\.balance/.test(line)) {
+            const afterBalance = lines.slice(i, i + 10).join('\n');
+            if (/\.(transfer|send|call)/.test(afterBalance)) {
+                features.seq_balance_before_transfer!++;
+            }
+        }
+
+        // 7. State read after call
+        if (hasExternalCall && /\[\w+\]|\.\w+\s*(?!=)/.test(line) && !hasStateChange) {
+            const isRead = !/=\s*$/.test(line);
+            if (isRead) {
+                features.seq_state_read_after_call!++;
+            }
+        }
+        if (/\[\w+\]\s*=|state\w*\s*=/.test(line)) {
+            hasStateChange = true;
+        }
+
+        // 8. Delegatecall without modifier
+        if (/delegatecall/.test(line) && inFunction && !hasModifier) {
+            features.seq_delegatecall_no_modifier!++;
+        }
+
+        // 9. Selfdestruct without require
+        if (/selfdestruct/.test(line)) {
+            const funcBefore = lines.slice(Math.max(0, i - 20), i).join('\n');
+            if (!/(require|onlyOwner|modifier)/.test(funcBefore)) {
+                features.seq_selfdestruct_no_require!++;
+            }
+        }
+
+        // 10. Block in condition
+        if (/if\s*\(.*block\.(timestamp|number)/.test(line)) {
+            features.seq_block_in_condition!++;
+        }
+
+        // 11. Blockhash for random
+        if (/blockhash\s*\(/.test(line)) {
+            if (/random|rand|seed|winner|lottery/i.test(nextLines)) {
+                features.seq_blockhash_for_random!++;
+            }
+        }
+    }
+
+    return features;
+}
+
+// ============================================================================
 // SOURCE CODE PATTERN EXTRACTION
 // ============================================================================
 
@@ -325,6 +498,13 @@ export function extractSourcePatterns(sourceCode: string): Partial<Vulnerability
         features.inheritance_depth = 0;
     }
 
+    // ========================================================================
+    // SEQUENCE-BASED FEATURES (14 features)
+    // These detect CEI violations and dangerous ordering patterns
+    // ========================================================================
+    const seqFeatures = extractSequencePatterns(code);
+    Object.assign(features, seqFeatures);
+
     return features;
 }
 
@@ -405,6 +585,22 @@ export async function extractAllFeatures(
         max_function_length: 0,
         avg_function_length: 0,
         inheritance_depth: 0,
+
+        // Sequence-based features (14)
+        seq_call_before_assign: 0,
+        seq_transfer_before_assign: 0,
+        seq_send_before_assign: 0,
+        seq_external_before_require: 0,
+        seq_external_in_loop: 0,
+        seq_call_no_return_check: 0,
+        seq_send_no_check: 0,
+        seq_msg_value_in_loop: 0,
+        seq_balance_before_transfer: 0,
+        seq_state_read_after_call: 0,
+        seq_delegatecall_no_modifier: 0,
+        seq_selfdestruct_no_require: 0,
+        seq_block_in_condition: 0,
+        seq_blockhash_for_random: 0,
     };
 
     // 1. Extract source code patterns (always works)
@@ -487,6 +683,14 @@ export function getFeatureNames(): string[] {
         // Complexity (5)
         'lines_of_code', 'cyclomatic_complexity_estimate',
         'max_function_length', 'avg_function_length', 'inheritance_depth',
+
+        // Sequence-based features (14) - matches trained model
+        'seq_call_before_assign', 'seq_transfer_before_assign', 'seq_send_before_assign',
+        'seq_external_before_require', 'seq_external_in_loop',
+        'seq_call_no_return_check', 'seq_send_no_check',
+        'seq_msg_value_in_loop', 'seq_balance_before_transfer', 'seq_state_read_after_call',
+        'seq_delegatecall_no_modifier', 'seq_selfdestruct_no_require',
+        'seq_block_in_condition', 'seq_blockhash_for_random',
     ];
 }
 

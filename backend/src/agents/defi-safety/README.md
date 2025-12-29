@@ -11,7 +11,6 @@ Production-grade smart contract vulnerability detection powered by ML + LLM hybr
 | **Recall** | **95%** | 50-80% | 30-50% | 40-60% |
 | **Precision** | 75-80% | 50-70% | 40-60% | 40-55% |
 | **Inference Time** | **<5ms** | 2-10s | 30s-5min | 10-60s |
-| **API Cost** | $0.002/uncertain | Free | Free | Free |
 
 > **Design Philosophy:** In DeFi security, a missed vulnerability (false negative) can result in millions of dollars lost. We optimize for catching threats, accepting more false alarms as the safer trade-off.
 
@@ -98,14 +97,14 @@ VULNERABILITY_THRESHOLD: 0.30
 
 ---
 
-## Cost Optimization
+## Efficiency Optimization
 
-| Contract Type | ML Only | LLM Called | Cost |
-|---------------|---------|------------|------|
-| Clearly Safe (score <0.08) | Yes | No | $0 |
-| Clearly Vulnerable (>0.35) | Yes | No | $0 |
-| Uncertain (0.08-0.35) | Yes | Yes | ~$0.002 |
-| High-Value (>$100K TVL) | Yes | Yes | ~$0.002 |
+| Contract Type | ML Only | LLM Called |
+|---------------|---------|------------|
+| Clearly Safe (score <0.08) | Yes | No |
+| Clearly Vulnerable (>0.35) | Yes | No |
+| Uncertain (0.08-0.35) | Yes | Yes |
+| High-Value (>$100K TVL) | Yes | Yes |
 
 Expected: 85%+ of contracts handled by ML alone.
 
@@ -146,11 +145,11 @@ function withdraw() public {
 | Balanced (0.25) | 82% | 68% | 74% | 46/143 |
 | Conservative (0.30) | 91% | 36% | 52% | 92/143 |
 
-### API Cost Analysis (1000 contracts)
+### Efficiency Analysis (1000 contracts)
 
 | Without Hybrid | With Hybrid | Savings |
 |----------------|-------------|---------|
-| 1000 LLM calls (~$2) | ~150 LLM calls (~$0.30) | **85%** |
+| 1000 LLM calls | ~150 LLM calls | **85%** |
 
 ---
 

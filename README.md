@@ -66,12 +66,12 @@ flowchart TB
 
 ### Core Agents
 
-| Agent | Capability | Price | Function |
-|-------|------------|-------|----------|
-| Coordinator | orchestration | FREE | Task decomposition, agent selection, synthesis |
-| Research | research | $0.02 | Perplexity AI integration |
-| Market | market_data | $0.02 | CoinGecko + DeFiLlama feeds |
-| Analyst | analysis | $0.05 | Pattern recognition |
+| Agent | Capability | Function |
+|-------|------------|----------|
+| Coordinator | orchestration | Task decomposition, agent selection, synthesis |
+| Research | research | Perplexity AI integration |
+| Market | market_data | CoinGecko + DeFiLlama feeds |
+| Analyst | analysis | Pattern recognition |
 
 ### DeFi Safety Agent — ML-Powered Vulnerability Detection
 
@@ -98,14 +98,14 @@ flowchart TB
 
 ### Additional DeFi Agents
 
-| Agent | Price | Capability |
-|-------|-------|------------|
-| OnChain Analyst | $0.25 | Wallet profiling, cross-chain tracking |
-| Smart Router | $0.20 | Multi-DEX aggregation, MEV protection |
-| Portfolio Manager | $0.30 | Risk metrics, impermanent loss calculation |
-| Yield Optimizer | $0.40 | APY comparison, auto-compound optimization |
-| Liquidation Protection | $0.35 | Health factor monitoring, deleverage simulation |
-| Executor Agent | $0.50 | Autonomous transaction execution |
+| Agent | Capability |
+|-------|------------|
+| OnChain Analyst | Wallet profiling, cross-chain tracking |
+| Smart Router | Multi-DEX aggregation, MEV protection |
+| Portfolio Manager | Risk metrics, impermanent loss calculation |
+| Yield Optimizer | APY comparison, auto-compound optimization |
+| Liquidation Protection | Health factor monitoring, deleverage simulation |
+| Executor Agent | Autonomous transaction execution |
 
 ---
 

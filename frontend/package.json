@@ -1,38 +1,39 @@
 {
-    "license": "AGPL-3.0-only",`n  "name":  "mosaic-frontend",
-    "version":  "1.0.0",
-    "private":  true,
-    "scripts":  {
-                    "dev":  "next dev",
-                    "build":  "next build",
-                    "start":  "next start",
-                    "lint":  "next lint"
-                },
-    "dependencies":  {
-                         "@rainbow-me/rainbowkit":  "^2.2.10",
-                         "@react-three/drei":  "^9.122.0",
-                         "@react-three/fiber":  "^8.18.0",
-                         "@tanstack/react-query":  "^5.90.12",
-                         "@types/three":  "^0.182.0",
-                         "gsap":  "^3.14.2",
-                         "lucide-react":  "^0.468.0",
-                         "next":  "^16.1.0",
-                         "react":  "^18.3.1",
-                         "react-dom":  "^18.3.1",
-                         "react-force-graph-2d":  "^1.25.8",
-                         "react-markdown":  "^10.1.0",
-                         "three":  "^0.182.0",
-                         "three-stdlib":  "^2.36.1",
-                         "viem":  "^2.43.3",
-                         "wagmi":  "^2.19.5"
-                     },
-    "devDependencies":  {
-                            "@types/node":  "^22.10.2",
-                            "@types/react":  "^18.3.14",
-                            "@types/react-dom":  "^18.3.5",
-                            "autoprefixer":  "^10.4.20",
-                            "postcss":  "^8.4.49",
-                            "tailwindcss":  "^3.4.16",
-                            "typescript":  "^5.7.2"
-                        }
+    "license": "AGPL-3.0-only",
+    "name": "mosaic-frontend",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "lint": "next lint"
+    },
+    "dependencies": {
+        "@rainbow-me/rainbowkit": "^2.2.10",
+        "@react-three/drei": "^9.122.0",
+        "@react-three/fiber": "^8.18.0",
+        "@tanstack/react-query": "^5.90.12",
+        "@types/three": "^0.182.0",
+        "gsap": "^3.14.2",
+        "lucide-react": "^0.468.0",
+        "next": "^16.1.0",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "react-force-graph-2d": "^1.25.8",
+        "react-markdown": "^10.1.0",
+        "three": "^0.182.0",
+        "three-stdlib": "^2.36.1",
+        "viem": "^2.43.3",
+        "wagmi": "^2.19.5"
+    },
+    "devDependencies": {
+        "@types/node": "^22.10.2",
+        "@types/react": "^18.3.14",
+        "@types/react-dom": "^18.3.5",
+        "autoprefixer": "^10.4.20",
+        "postcss": "^8.4.49",
+        "tailwindcss": "^3.4.16",
+        "typescript": "^5.7.2"
+    }
 }
