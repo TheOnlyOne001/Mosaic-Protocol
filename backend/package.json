@@ -1,31 +1,31 @@
 {
-  "name": "mosaic-backend",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "test:onchain": "tsx src/agents/onchain/test-scenarios.ts",
-    "test:onchain:all": "tsx src/agents/onchain/test-scenarios.ts --all",
-    "test:onchain:quick": "tsx src/agents/onchain/quick-test.ts",
-    "test:onchain:single": "tsx src/agents/onchain/test-scenarios.ts --test"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.32.1",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "ethers": "^6.13.4",
-    "express": "^4.21.1",
-    "ws": "^8.18.0"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.10.2",
-    "@types/ws": "^8.5.13",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
-  }
+    "license": "AGPL-3.0-only",`n  "name":  "mosaic-backend",
+    "version":  "1.0.0",
+    "private":  true,
+    "type":  "module",
+    "scripts":  {
+                    "dev":  "tsx watch src/index.ts",
+                    "build":  "tsc",
+                    "start":  "node dist/index.js",
+                    "test:onchain":  "tsx src/agents/onchain/test-scenarios.ts",
+                    "test:onchain:all":  "tsx src/agents/onchain/test-scenarios.ts --all",
+                    "test:onchain:quick":  "tsx src/agents/onchain/quick-test.ts",
+                    "test:onchain:single":  "tsx src/agents/onchain/test-scenarios.ts --test"
+                },
+    "dependencies":  {
+                         "@anthropic-ai/sdk":  "^0.32.1",
+                         "cors":  "^2.8.5",
+                         "dotenv":  "^16.4.5",
+                         "ethers":  "^6.13.4",
+                         "express":  "^4.21.1",
+                         "ws":  "^8.18.0"
+                     },
+    "devDependencies":  {
+                            "@types/cors":  "^2.8.17",
+                            "@types/express":  "^5.0.0",
+                            "@types/node":  "^22.10.2",
+                            "@types/ws":  "^8.5.13",
+                            "tsx":  "^4.19.2",
+                            "typescript":  "^5.7.2"
+                        }
 }

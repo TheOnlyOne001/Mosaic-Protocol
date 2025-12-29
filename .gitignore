@@ -40,6 +40,8 @@ coverage/
 # Documentation (generated)
 *.md
 !README.md
+!CONTRIBUTING.md
+!backend/src/agents/defi-safety/README.md
 !docs/*.md
 
 # Test files

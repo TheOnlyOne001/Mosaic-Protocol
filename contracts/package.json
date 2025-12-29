@@ -1,20 +1,20 @@
 {
-  "name": "mosaic-contracts",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "compile": "hardhat compile",
-    "test": "hardhat test",
-    "deploy": "hardhat run scripts/deploy.ts --network baseSepolia",
-    "deploy:local": "hardhat run scripts/deploy.ts --network localhost"
-  },
-  "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "@openzeppelin/contracts": "^5.1.0",
-    "hardhat": "^2.22.17",
-    "typescript": "^5.7.2"
-  },
-  "dependencies": {
-    "dotenv": "^17.2.3"
-  }
+    "license": "AGPL-3.0-only",`n  "name":  "mosaic-contracts",
+    "version":  "1.0.0",
+    "private":  true,
+    "scripts":  {
+                    "compile":  "hardhat compile",
+                    "test":  "hardhat test",
+                    "deploy":  "hardhat run scripts/deploy.ts --network baseSepolia",
+                    "deploy:local":  "hardhat run scripts/deploy.ts --network localhost"
+                },
+    "devDependencies":  {
+                            "@nomicfoundation/hardhat-toolbox":  "^5.0.0",
+                            "@openzeppelin/contracts":  "^5.1.0",
+                            "hardhat":  "^2.22.17",
+                            "typescript":  "^5.7.2"
+                        },
+    "dependencies":  {
+                         "dotenv":  "^17.2.3"
+                     }
 }
