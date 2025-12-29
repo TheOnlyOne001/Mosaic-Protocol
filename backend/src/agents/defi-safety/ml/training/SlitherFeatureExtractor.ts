@@ -712,6 +712,129 @@ export function featuresToArray(features: VulnerabilityFeatures): number[] {
     return names.map(name => (features as any)[name] || 0);
 }
 
+/**
+ * Get feature vector in exact order trained model expects (68 features)
+ * Maps from VulnerabilityFeatures to model's feature order
+ */
+export function getModelFeatureVector(features: Partial<VulnerabilityFeatures>): number[] {
+    // Trained model expects exactly these 68 features in this order
+    const modelFeatures = [
+        // 15 has_* flags
+        features.has_reentrancy || 0,
+        features.has_arbitrary_send || 0,
+        features.has_controlled_delegatecall || 0,
+        features.has_unchecked_transfer || 0,
+        features.has_unprotected_upgrade || 0,
+        features.has_suicidal || 0,
+        features.has_uninitialized_state || 0,
+        features.has_locked_ether || 0,
+        features.has_tx_origin || 0,
+        features.has_timestamp_dependency || 0,
+        features.has_weak_randomness || 0,
+        features.has_integer_overflow || 0,
+        features.has_unused_return || 0,
+        features.has_shadowing || 0,
+        features.has_assembly || 0,
+
+        // 15 source code patterns
+        features.external_call_count || 0,
+        features.delegatecall_count || 0,
+        features.selfdestruct_count || 0,
+        features.transfer_count || 0,
+        features.send_count || 0,
+        features.call_value_count || 0,
+        features.state_variable_count || 0,
+        features.function_count || 0,
+        features.modifier_count || 0,
+        features.event_count || 0,
+        features.require_count || 0,
+        features.assert_count || 0,
+        features.revert_count || 0,
+        features.loop_count || 0,
+        features.assembly_block_count || 0,
+
+        // 10 security indicators
+        features.has_onlyowner_modifier || 0,
+        features.has_reentrancy_guard || 0,
+        features.has_pausable || 0,
+        features.has_ownable || 0,
+        features.has_access_control || 0,
+        features.uses_safemath || 0,
+        features.uses_openzeppelin || 0,
+        features.has_fallback || 0,
+        features.has_receive || 0,
+        features.has_constructor || 0,
+
+        // 5 complexity metrics
+        features.lines_of_code || 0,
+        features.cyclomatic_complexity_estimate || 0,
+        features.max_function_length || 0,
+        features.avg_function_length || 0,
+        features.inheritance_depth || 0,
+
+        // 9 slither_detector features (mapped from has_* flags)
+        features.has_reentrancy || 0,          // slither_reentrancy
+        features.has_unchecked_transfer || 0,  // slither_unchecked_call
+        features.has_tx_origin || 0,           // slither_tx_origin
+        features.has_timestamp_dependency || 0,// slither_timestamp  
+        features.has_weak_randomness || 0,     // slither_randomness
+        features.has_arbitrary_send || 0,      // slither_arbitrary_send
+        features.has_controlled_delegatecall || 0, // slither_delegatecall
+        features.has_suicidal || 0,            // slither_suicidal
+        features.has_locked_ether || 0,        // slither_locked_ether
+
+        // 14 sequence features
+        features.seq_call_before_assign || 0,
+        features.seq_transfer_before_assign || 0,
+        features.seq_send_before_assign || 0,
+        features.seq_external_before_require || 0,
+        features.seq_external_in_loop || 0,
+        features.seq_call_no_return_check || 0,
+        features.seq_send_no_check || 0,
+        features.seq_msg_value_in_loop || 0,
+        features.seq_balance_before_transfer || 0,
+        features.seq_state_read_after_call || 0,
+        features.seq_delegatecall_no_modifier || 0,
+        features.seq_selfdestruct_no_require || 0,
+        features.seq_block_in_condition || 0,
+        features.seq_blockhash_for_random || 0,
+    ];
+
+    return modelFeatures;
+}
+
+/**
+ * Get the 68 feature names in model order
+ */
+export function getModelFeatureNames(): string[] {
+    return [
+        'has_reentrancy', 'has_arbitrary_send', 'has_controlled_delegatecall',
+        'has_unchecked_transfer', 'has_unprotected_upgrade', 'has_suicidal',
+        'has_uninitialized_state', 'has_locked_ether', 'has_tx_origin',
+        'has_timestamp_dependency', 'has_weak_randomness', 'has_integer_overflow',
+        'has_unused_return', 'has_shadowing', 'has_assembly',
+        'external_call_count', 'delegatecall_count', 'selfdestruct_count',
+        'transfer_count', 'send_count', 'call_value_count',
+        'state_variable_count', 'function_count', 'modifier_count',
+        'event_count', 'require_count', 'assert_count',
+        'revert_count', 'loop_count', 'assembly_block_count',
+        'has_onlyowner_modifier', 'has_reentrancy_guard', 'has_pausable',
+        'has_ownable', 'has_access_control', 'uses_safemath',
+        'uses_openzeppelin', 'has_fallback', 'has_receive', 'has_constructor',
+        'lines_of_code', 'cyclomatic_complexity_estimate',
+        'max_function_length', 'avg_function_length', 'inheritance_depth',
+        'slither_reentrancy', 'slither_unchecked_call', 'slither_tx_origin',
+        'slither_timestamp', 'slither_randomness', 'slither_arbitrary_send',
+        'slither_delegatecall', 'slither_suicidal', 'slither_locked_ether',
+        'seq_call_before_assign', 'seq_transfer_before_assign', 'seq_send_before_assign',
+        'seq_external_before_require', 'seq_external_in_loop',
+        'seq_call_no_return_check', 'seq_send_no_check',
+        'seq_msg_value_in_loop', 'seq_balance_before_transfer', 'seq_state_read_after_call',
+        'seq_delegatecall_no_modifier', 'seq_selfdestruct_no_require',
+        'seq_block_in_condition', 'seq_blockhash_for_random',
+    ];
+}
+
 // Test function exported for external use
 export async function testFeatureExtractor(): Promise<void> {
     const testContract = `
