@@ -320,9 +320,19 @@ function extractSequencePatterns(sourceCode: string): Partial<VulnerabilityFeatu
         if (/\.call\{?\s*value/.test(line) || /\.call\s*\(/.test(line)) {
             hasExternalCall = true;
             const afterCall = lines.slice(i + 1, i + 15).join('\n');
-            if (/\w+\s*(\+|-)?=/.test(afterCall) && !/require|revert|assert/.test(afterCall.split('\n')[0])) {
+
+            // Look for state assignment ANYWHERE after .call (even after require)
+            // Pattern: .call{value}(...) → require(success) → balances[x] -= y
+            // This is STILL reentrancy vulnerable!
+            const hasStateAssignment = /\[\w+\]\s*(\+|-)?=/.test(afterCall) ||
+                /balances?\[\w+\]\s*(\+|-)?=/.test(afterCall) ||
+                /\.\w+\s*(\+|-)?=/.test(afterCall);
+
+            // Only safe if state is updated BEFORE or no state update at all
+            if (hasStateAssignment) {
                 features.seq_call_before_assign!++;
             }
+
             if (!/(bool\s+\w+,?)/.test(line) && !/(success|ok|result)/.test(nextLines)) {
                 features.seq_call_no_return_check!++;
             }
