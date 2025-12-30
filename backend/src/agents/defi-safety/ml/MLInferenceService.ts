@@ -1,27 +1,21 @@
 /**
- * ML Inference Service v2.0
+ * ML Inference Service v3.0
  * 
- * Native ONNX inference for trained XGBoost ensemble models.
- * No Python dependency at runtime.
+ * Uses Python subprocess for XGBoost ensemble model inference.
+ * Falls back to heuristics if Python not available.
  * 
  * Models:
- * - ensemble_recall_model.onnx: High-recall model (scale_pos_weight*10)
- * - ensemble_precision_model.onnx: High-precision model
+ * - ensemble_recall_model.pkl: High-recall model (scale_pos_weight*10)
+ * - ensemble_precision_model.pkl: High-precision model
  * 
  * Config: threshold=0.007 (optimized for ~80% recall), weights=[0.7, 0.3]
  */
 
+import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as readline from 'readline';
 import { extractSourcePatterns, getModelFeatureVector, VulnerabilityFeatures } from '../ml/training/SlitherFeatureExtractor.js';
-
-// Try to import ONNX runtime (optional dependency)
-let ort: typeof import('onnxruntime-node') | null = null;
-try {
-    ort = await import('onnxruntime-node');
-} catch {
-    console.warn('onnxruntime-node not available, using heuristic fallback');
-}
 
 // Configuration from trained model
 export interface MLConfig {
@@ -42,7 +36,7 @@ export interface MLPrediction {
     recallModelScore: number;
     precisionModelScore: number;
     threshold: number;
-    source: 'onnx' | 'heuristic';
+    source: 'python' | 'heuristic';
 }
 
 // GOLDEN THRESHOLD for ~80% recall
@@ -62,19 +56,22 @@ const DEFAULT_CONFIG: MLConfig = {
 
 // Paths
 const MODELS_DIR = path.resolve(__dirname, '../../../../../ml-training/trained/models/ensemble');
+const BRIDGE_SCRIPT = path.resolve(__dirname, '../../../../ml_inference_bridge.py');
 
 /**
- * ML Inference Service with ONNX support
+ * ML Inference Service with Python bridge
  */
 class MLInferenceService {
     private config: MLConfig = DEFAULT_CONFIG;
-    private recallSession: InstanceType<typeof import('onnxruntime-node').InferenceSession> | null = null;
-    private precisionSession: InstanceType<typeof import('onnxruntime-node').InferenceSession> | null = null;
+    private pythonProcess: ChildProcess | null = null;
+    private pythonReadline: readline.Interface | null = null;
     private initialized = false;
-    private onnxAvailable = false;
+    private pythonAvailable = false;
+    private pendingRequests: Map<number, { resolve: (value: MLPrediction) => void; reject: (error: Error) => void }> = new Map();
+    private requestId = 0;
 
     /**
-     * Initialize the service (load config + ONNX models)
+     * Initialize the service
      */
     async initialize(): Promise<void> {
         if (this.initialized) return;
@@ -88,7 +85,7 @@ class MLInferenceService {
                 this.config = {
                     type: loadedConfig.type || DEFAULT_CONFIG.type,
                     weights: loadedConfig.weights || DEFAULT_CONFIG.weights,
-                    threshold: GOLDEN_THRESHOLD, // Force golden threshold
+                    threshold: GOLDEN_THRESHOLD,
                     featureNames: loadedConfig.feature_names || DEFAULT_CONFIG.featureNames,
                     expectedMetrics: loadedConfig.expected_metrics || DEFAULT_CONFIG.expectedMetrics,
                 };
@@ -97,32 +94,110 @@ class MLInferenceService {
             }
         }
 
-        // Try to load ONNX models
-        if (ort) {
-            try {
-                const recallPath = path.join(MODELS_DIR, 'ensemble_recall_model.onnx');
-                const precisionPath = path.join(MODELS_DIR, 'ensemble_precision_model.onnx');
-
-                if (fs.existsSync(recallPath) && fs.existsSync(precisionPath)) {
-                    this.recallSession = await ort.InferenceSession.create(recallPath);
-                    this.precisionSession = await ort.InferenceSession.create(precisionPath);
-                    this.onnxAvailable = true;
-                    console.log('ONNX models loaded successfully');
-                } else {
-                    console.warn('ONNX models not found, run convert_to_onnx.py first');
-                }
-            } catch (error) {
-                console.warn('Failed to load ONNX models:', error);
-            }
-        }
+        // Try to start Python bridge
+        await this.startPythonBridge();
 
         console.log('ML Inference Service initialized:', {
             threshold: this.config.threshold,
             weights: this.config.weights,
-            onnx: this.onnxAvailable,
+            python: this.pythonAvailable,
         });
 
         this.initialized = true;
+    }
+
+    /**
+     * Start Python inference bridge
+     */
+    private async startPythonBridge(): Promise<void> {
+        if (!fs.existsSync(BRIDGE_SCRIPT)) {
+            console.warn('Python bridge script not found:', BRIDGE_SCRIPT);
+            return;
+        }
+
+        return new Promise((resolve) => {
+            this.pythonProcess = spawn('python', [BRIDGE_SCRIPT], {
+                stdio: ['pipe', 'pipe', 'pipe'],
+            });
+
+            if (!this.pythonProcess.stdout || !this.pythonProcess.stdin) {
+                console.warn('Failed to start Python bridge - no stdio');
+                resolve();
+                return;
+            }
+
+            this.pythonReadline = readline.createInterface({
+                input: this.pythonProcess.stdout,
+                crlfDelay: Infinity,
+            });
+
+            let ready = false;
+            const timeout = setTimeout(() => {
+                if (!ready) {
+                    console.warn('Python bridge timeout');
+                    resolve();
+                }
+            }, 5000);
+
+            this.pythonReadline.on('line', (line) => {
+                try {
+                    const data = JSON.parse(line);
+
+                    if (data.status === 'ready') {
+                        this.pythonAvailable = true;
+                        ready = true;
+                        clearTimeout(timeout);
+                        console.log('Python bridge ready:', data);
+                        resolve();
+                    } else if (data.error) {
+                        console.warn('Python bridge error:', data.error);
+                    } else {
+                        // This is a prediction response
+                        this.handlePythonResponse(data);
+                    }
+                } catch {
+                    // Ignore non-JSON output
+                }
+            });
+
+            this.pythonProcess.stderr?.on('data', (data) => {
+                console.warn('Python stderr:', data.toString().trim());
+            });
+
+            this.pythonProcess.on('error', (err) => {
+                console.warn('Python process error:', err);
+                this.pythonAvailable = false;
+                resolve();
+            });
+
+            this.pythonProcess.on('exit', (code) => {
+                if (code !== 0) {
+                    console.warn('Python bridge exited with code:', code);
+                }
+                this.pythonAvailable = false;
+            });
+        });
+    }
+
+    /**
+     * Handle Python response
+     */
+    private handlePythonResponse(data: { probability?: number; recall_score?: number; precision_score?: number; is_vulnerable?: boolean; error?: string }): void {
+        // Single-request model - resolve all pending
+        for (const [, { resolve }] of this.pendingRequests.entries()) {
+            if (data.probability !== undefined) {
+                resolve({
+                    probability: data.probability,
+                    isVulnerable: data.is_vulnerable || false,
+                    confidence: Math.abs(data.probability - this.config.threshold) / Math.max(0.001, this.config.threshold),
+                    recallModelScore: data.recall_score || 0,
+                    precisionModelScore: data.precision_score || 0,
+                    threshold: this.config.threshold,
+                    source: 'python',
+                });
+            }
+        }
+        this.pendingRequests.clear();
     }
 
     /**
@@ -133,10 +208,10 @@ class MLInferenceService {
     }
 
     /**
-     * Check if ONNX inference is available
+     * Check if Python inference is available
      */
-    isONNXAvailable(): boolean {
-        return this.onnxAvailable;
+    isPythonAvailable(): boolean {
+        return this.pythonAvailable;
     }
 
     /**
@@ -147,63 +222,43 @@ class MLInferenceService {
     }
 
     /**
-     * Main prediction method - uses ONNX if available, falls back to heuristics
+     * Main prediction method - uses Python if available, falls back to heuristics
      */
     async predict(sourceCode: string): Promise<MLPrediction> {
-        if (this.onnxAvailable && this.recallSession && this.precisionSession) {
-            return this.predictWithONNX(sourceCode);
+        if (this.pythonAvailable && this.pythonProcess?.stdin) {
+            return this.predictWithPython(sourceCode);
         }
         return this.predictLocal(sourceCode);
     }
 
     /**
-     * Predict using ONNX models (native inference)
+     * Predict using Python bridge
      */
-    private async predictWithONNX(sourceCode: string): Promise<MLPrediction> {
+    private async predictWithPython(sourceCode: string): Promise<MLPrediction> {
         const features = this.extractFeatures(sourceCode);
         const featureVector = getModelFeatureVector(features);
 
-        // Create tensor [1, 68]
-        const inputTensor = new ort!.Tensor('float32', new Float32Array(featureVector), [1, 68]);
+        return new Promise((resolve, reject) => {
+            const id = ++this.requestId;
+            this.pendingRequests.set(id, { resolve, reject });
 
-        // Run both models
-        const recallResult = await this.recallSession!.run({ input: inputTensor });
-        const precisionResult = await this.precisionSession!.run({ input: inputTensor });
+            const timeout = setTimeout(() => {
+                this.pendingRequests.delete(id);
+                console.warn('Python prediction timeout, falling back to heuristics');
+                resolve(this.predictLocal(sourceCode));
+            }, 5000);
 
-        // Get probability scores (assuming binary classification output)
-        const recallScore = this.extractProbability(recallResult);
-        const precisionScore = this.extractProbability(precisionResult);
+            const request = JSON.stringify({ features: featureVector }) + '\n';
 
-        // Weighted ensemble
-        const [recallWeight, precisionWeight] = this.config.weights;
-        const probability = recallWeight * recallScore + precisionWeight * precisionScore;
-
-        return {
-            probability,
-            isVulnerable: probability >= this.config.threshold,
-            confidence: Math.abs(probability - this.config.threshold) / Math.max(0.001, this.config.threshold),
-            recallModelScore: recallScore,
-            precisionModelScore: precisionScore,
-            threshold: this.config.threshold,
-            source: 'onnx',
-        };
-    }
-
-    /**
-     * Extract probability from ONNX output
-     */
-    private extractProbability(result: Record<string, unknown>): number {
-        // Handle different ONNX output formats
-        const output = result['output'] || result['probabilities'] || Object.values(result)[0];
-        if (output && typeof output === 'object' && 'data' in output) {
-            const data = (output as { data: ArrayLike<number> }).data;
-            // For binary classification, return probability of positive class
-            if (data.length >= 2) {
-                return data[1]; // P(vulnerable)
-            }
-            return data[0];
-        }
-        return 0.5;
+            this.pythonProcess!.stdin!.write(request, (err) => {
+                if (err) {
+                    clearTimeout(timeout);
+                    this.pendingRequests.delete(id);
+                    console.warn('Failed to write to Python bridge:', err);
+                    resolve(this.predictLocal(sourceCode));
+                }
+            });
+        });
     }
 
     /**
@@ -215,7 +270,6 @@ class MLInferenceService {
         // Calculate recall model score (aggressive detection)
         let recallScore = 0.3;
 
-        // Dangerous patterns (from model importance)
         const seq_state_read_after_call = features.seq_state_read_after_call || 0;
         const has_unchecked_transfer = features.has_unchecked_transfer || 0;
         const seq_balance_before_transfer = features.seq_balance_before_transfer || 0;
@@ -226,14 +280,12 @@ class MLInferenceService {
         const uses_openzeppelin = features.uses_openzeppelin || 0;
         const has_access_control = features.has_access_control || 0;
 
-        // Recall model: aggressive on vulnerabilities
         if (seq_state_read_after_call > 0) recallScore += 0.25;
         if (has_unchecked_transfer > 0) recallScore += 0.20;
         if (transfer_count > 2 && require_count < 3) recallScore += 0.15;
         if (external_call_count > 3 && !has_reentrancy_guard) recallScore += 0.15;
         if (seq_balance_before_transfer > 0) recallScore += 0.10;
 
-        // Safety indicators reduce score
         if (has_reentrancy_guard) recallScore -= 0.20;
         if (uses_openzeppelin) recallScore -= 0.15;
         if (has_access_control) recallScore -= 0.10;
@@ -244,19 +296,16 @@ class MLInferenceService {
         // Precision model: conservative
         let precisionScore = 0.2;
 
-        // Only high-confidence indicators
         if (has_unchecked_transfer > 0 && seq_state_read_after_call > 0) precisionScore += 0.30;
         if (external_call_count > 5 && require_count < 2) precisionScore += 0.25;
         if (features.delegatecall_count && features.delegatecall_count > 0) precisionScore += 0.20;
         if (features.selfdestruct_count && features.selfdestruct_count > 0) precisionScore += 0.15;
 
-        // Strong safety reduces precision model score
         if (uses_openzeppelin && has_reentrancy_guard) precisionScore -= 0.25;
         if (has_access_control && require_count > 5) precisionScore -= 0.15;
 
         precisionScore = Math.max(0, Math.min(1, precisionScore));
 
-        // Weighted ensemble
         const [recallWeight, precisionWeight] = this.config.weights;
         const probability = recallWeight * recallScore + precisionWeight * precisionScore;
 
@@ -283,6 +332,20 @@ class MLInferenceService {
      */
     setThreshold(threshold: number): void {
         this.config.threshold = Math.max(0, Math.min(1, threshold));
+    }
+
+    /**
+     * Cleanup
+     */
+    destroy(): void {
+        if (this.pythonProcess) {
+            this.pythonProcess.kill();
+            this.pythonProcess = null;
+        }
+        if (this.pythonReadline) {
+            this.pythonReadline.close();
+            this.pythonReadline = null;
+        }
     }
 }
 
