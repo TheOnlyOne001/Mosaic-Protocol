@@ -15,7 +15,12 @@ import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as readline from 'readline';
+import { fileURLToPath } from 'url';
 import { extractSourcePatterns, getModelFeatureVector, VulnerabilityFeatures } from '../ml/training/SlitherFeatureExtractor.js';
+
+// ES Module __dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Configuration from trained model
 export interface MLConfig {
