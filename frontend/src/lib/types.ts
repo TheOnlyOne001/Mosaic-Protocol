@@ -1,3 +1,22 @@
+// Risk Severity levels from ML model
+export type RiskSeverity = 'CRITICAL' | 'HIGH' | 'LOW' | 'SAFE';
+
+// Severity colors for UI display
+export const SEVERITY_COLORS: Record<RiskSeverity, string> = {
+    CRITICAL: '#ef4444', // Red
+    HIGH: '#f97316',     // Orange
+    LOW: '#eab308',      // Yellow
+    SAFE: '#22c55e',     // Green
+};
+
+// Severity icons for UI display
+export const SEVERITY_ICONS: Record<RiskSeverity, string> = {
+    CRITICAL: '🔴',
+    HIGH: '🟠',
+    LOW: '🟡',
+    SAFE: '🟢',
+};
+
 export interface Agent {
     id: string;
     name: string;
@@ -112,46 +131,46 @@ export type WSEvent =
     // Agent status events
     | { type: 'agent:status'; id: string; status: 'idle' | 'working' | 'complete' }
     | { type: 'agents:init'; agents: AgentOption[] }
-    
+
     // Discovery events
     | { type: 'decision:discovery'; capability: string; candidates: AgentOption[]; queryTime: number }
-    
+
     // Selection events
     | { type: 'decision:selection'; selected: AgentOption; reasoning: string; scores: DecisionLog['scores']; alternatives: AgentOption[] }
-    
+
     // Autonomous decision events
     | { type: 'decision:autonomous'; agentId: string; agentName: string; description: string; capability: string }
-    
+
     // Payment events
     | { type: 'payment:sending'; from: string; to: string; amount: string; fromName: string; toName: string; toOwner?: string }
     | { type: 'payment:confirmed'; txHash: string; from: string; to: string; amount: string; fromName: string; toName: string; toOwner?: string }
-    
+
     // Owner earnings events
     | { type: 'owner:earning'; owner: string; amount: string; fromAgent: string; toAgent: string }
-    
+
     // Execution events
     | { type: 'execution:start'; agentId: string; agentName: string; tool: string; input: string }
     | { type: 'execution:complete'; agentId: string; agentName: string; tool: string; output: string }
-    
+
     // Task events
     | { type: 'subtask:result'; agent: string; output: string }
     | { type: 'task:complete'; result: string; totalCost: string; ownersEarned?: OwnerEarnings[]; microPaymentCount?: number }
-    
+
     // Decision log events
     | { type: 'decision:log'; decision: DecisionLog }
-    
+
     // x402 Streaming Payment Events
     | { type: 'stream:open'; streamId: string; fromAgent: string; toAgent: string; fromAddress: string; toAddress: string; toOwner: string; ratePerToken: string; totalBudget: string; realTimeMode?: boolean }
     | { type: 'stream:micro'; streamId: string; fromAgent: string; toAgent: string; tokens: number; paid: string; cumulative: string; microPaymentNumber: number; globalCount: number; onChainPaid?: string; realTimeMode?: boolean; txCount?: number }
     | { type: 'stream:onchain'; streamId: string; fromAgent: string; toAgent: string; amount: string; txHash: string; blockNumber: number }
     | { type: 'stream:settle'; streamId: string; fromAgent: string; toAgent: string; toOwner: string; totalTokens: number; totalMicroPayments: number; totalPaid: string; txHash: string; duration: number; paymentsPerSecond: string; globalCount: number; totalPaidOnChain?: string; onChainTxCount?: number; onChainTxHashes?: string[]; realTimeMode?: boolean }
     | { type: 'stream:reset'; timestamp: number }
-    
+
     // x402 Attention Auction Events
     | { type: 'auction:start'; auctionId: string; capability: string; participants: AuctionBid[] }
     | { type: 'auction:bid'; auctionId: string; agentId: number; agentName: string; bidAmount: string; reputation: number; bidScore: number; rank: number }
     | { type: 'auction:winner'; auctionId: string; winner: AuctionBid; runners: AuctionBid[]; reason: string }
-    
+
     // ZK Verification Events
     | { type: 'verification:start'; agentId: string; agentName: string; task: string }
     | { type: 'verification:job_created'; jobId: string; payer: string; amount: string }
@@ -164,10 +183,24 @@ export type WSEvent =
     | { type: 'verification:settled'; jobId: string; paidTo: string; amount: string; txHash?: string }
     | { type: 'verification:slashed'; jobId: string; agent: string; amount: string; reason: string }
     | { type: 'verification:error'; jobId: string; error: string; agentId?: string; agentName?: string }
-    
+
     // Collusion Events
     | { type: 'collusion:blocked'; hirerAgent: string; hiredAgent: string; reason: string; alertType?: string }
-    
+
+    // DeFi Safety ML Risk Assessment Events
+    | {
+        type: 'defi:risk_assessment';
+        tokenAddress: string;
+        probability: number;
+        severity: RiskSeverity;
+        severityMessage: string;
+        riskScore: number;
+        label: string;
+        modelsUsed: string[];
+        whitelisted: boolean;
+        whitelistReason?: string;
+    }
+
     // Error events
     | { type: 'error'; message: string };
 
@@ -224,18 +257,18 @@ export const AGENT_COLORS = {
 export const AGENTS: Agent[] = [
     // Core Orchestration
     { id: 'coordinator', name: 'Coordinator', capability: 'orchestration', color: AGENT_COLORS.coordinator, status: 'idle' },
-    
+
     // Research & Data (Real tools: Perplexity, CoinGecko, DeFiLlama)
     { id: 'research', name: 'Research', capability: 'research', color: AGENT_COLORS.research, status: 'idle' },
     { id: 'market', name: 'Market Data', capability: 'market_data', color: AGENT_COLORS.market, status: 'idle' },
-    
+
     // DeFi Specialized (Real tools: GoPlus, RPC, Protocol APIs)
     { id: 'defi-safety', name: 'DeFi Safety', capability: 'token_safety_analysis', color: AGENT_COLORS.safety, status: 'idle' },
     { id: 'onchain', name: 'On-Chain Analyst', capability: 'onchain_analysis', color: AGENT_COLORS.analyst, status: 'idle' },
     { id: 'portfolio', name: 'Portfolio Manager', capability: 'portfolio_analysis', color: AGENT_COLORS.portfolio, status: 'idle' },
     { id: 'yield', name: 'Yield Optimizer', capability: 'yield_optimization', color: AGENT_COLORS.yield, status: 'idle' },
     { id: 'router', name: 'Smart Router', capability: 'dex_aggregation', color: AGENT_COLORS.router, status: 'idle' },
-    
+
     // Execution & Protection
     { id: 'executor', name: 'Executor', capability: 'autonomous_execution', color: AGENT_COLORS.executor, status: 'idle' },
     { id: 'liquidation', name: 'Liquidation Guard', capability: 'liquidation_protection', color: AGENT_COLORS.protection, status: 'idle' },
