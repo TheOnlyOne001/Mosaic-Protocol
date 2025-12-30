@@ -27,8 +27,19 @@ def load_models():
     
     return models
 
+def classify_severity(probability):
+    """Classify probability into severity tier"""
+    if probability >= 0.50:
+        return 'CRITICAL', 'High confidence exploit detected. Immediate review required.'
+    elif probability >= 0.15:
+        return 'HIGH', 'Suspicious patterns found. Manual review recommended.'
+    elif probability >= 0.007:
+        return 'LOW', 'Minor risk or code complexity warning.'
+    else:
+        return 'SAFE', 'No significant issues detected.'
+
 def predict(models, features):
-    """Run ensemble prediction"""
+    """Run ensemble prediction with severity tiers"""
     # Convert features to numpy array
     X = np.array(features).reshape(1, -1)
     
@@ -39,11 +50,16 @@ def predict(models, features):
     # Weighted ensemble
     probability = 0.7 * recall_proba + 0.3 * precision_proba
     
+    # Classify severity
+    severity, severity_message = classify_severity(probability)
+    
     return {
         'probability': float(probability),
         'recall_score': float(recall_proba),
         'precision_score': float(precision_proba),
-        'is_vulnerable': bool(probability >= 0.007),  # Convert to Python bool
+        'is_vulnerable': bool(probability >= 0.007),
+        'severity': severity,
+        'severity_message': severity_message,
         'threshold': 0.007
     }
 

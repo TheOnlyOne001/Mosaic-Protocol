@@ -29,15 +29,46 @@ export interface MLConfig {
     };
 }
 
+// Risk Severity Tiers (like Slither: High/Medium/Low)
+export enum RiskSeverity {
+    CRITICAL = 'CRITICAL',  // > 0.50 - High confidence exploit
+    HIGH = 'HIGH',          // 0.15 - 0.49 - Suspicious patterns
+    LOW = 'LOW',            // 0.007 - 0.14 - Code quality / minor risk
+    SAFE = 'SAFE',          // < 0.007 - No issues detected
+}
+
 export interface MLPrediction {
     probability: number;
     isVulnerable: boolean;
+    severity: RiskSeverity;
+    severityMessage: string;
     confidence: number;
     recallModelScore: number;
     precisionModelScore: number;
     threshold: number;
     source: 'python' | 'heuristic';
+    whitelisted: boolean;
+    whitelistReason?: string;
 }
+
+// Severity thresholds
+const SEVERITY_THRESHOLDS = {
+    CRITICAL: 0.50,   // > 50% = Critical exploit
+    HIGH: 0.15,       // 15-50% = Suspicious
+    LOW: 0.007,       // 0.7-15% = Low risk / code quality
+    // < 0.007 = Safe
+};
+
+// Standard library whitelist patterns
+const WHITELISTED_LIBRARIES = [
+    '@openzeppelin',
+    'openzeppelin-contracts',
+    'solmate',
+    '@uniswap',
+    '@chainlink',
+    '@aave',
+    'prb-math',
+];
 
 // GOLDEN THRESHOLD for ~80% recall
 const GOLDEN_THRESHOLD = 0.007;
@@ -57,6 +88,101 @@ const DEFAULT_CONFIG: MLConfig = {
 // Paths
 const MODELS_DIR = path.resolve(__dirname, '../../../../../ml-training/trained/models/ensemble');
 const BRIDGE_SCRIPT = path.resolve(__dirname, '../../../../ml_inference_bridge.py');
+
+/**
+ * Classify probability into severity tier
+ */
+function classifySeverity(probability: number): { severity: RiskSeverity; message: string } {
+    if (probability >= SEVERITY_THRESHOLDS.CRITICAL) {
+        return {
+            severity: RiskSeverity.CRITICAL,
+            message: 'High confidence exploit detected. Immediate review required.'
+        };
+    }
+    if (probability >= SEVERITY_THRESHOLDS.HIGH) {
+        return {
+            severity: RiskSeverity.HIGH,
+            message: 'Suspicious patterns found. Manual review recommended.'
+        };
+    }
+    if (probability >= SEVERITY_THRESHOLDS.LOW) {
+        return {
+            severity: RiskSeverity.LOW,
+            message: 'Minor risk or code complexity warning.'
+        };
+    }
+    return {
+        severity: RiskSeverity.SAFE,
+        message: 'No significant issues detected.'
+    };
+}
+
+/**
+ * Check if source code uses whitelisted standard libraries
+ */
+function checkWhitelist(sourceCode: string): { whitelisted: boolean; reason?: string } {
+    const lowerCode = sourceCode.toLowerCase();
+
+    for (const lib of WHITELISTED_LIBRARIES) {
+        if (sourceCode.includes(lib) || lowerCode.includes(lib.toLowerCase())) {
+            return {
+                whitelisted: true,
+                reason: `Uses trusted library: ${lib}`
+            };
+        }
+    }
+
+    // Check for OpenZeppelin-style patterns even without import
+    if (sourceCode.includes('ReentrancyGuard') && sourceCode.includes('nonReentrant')) {
+        return {
+            whitelisted: true,
+            reason: 'Uses ReentrancyGuard pattern'
+        };
+    }
+
+    return { whitelisted: false };
+}
+
+/**
+ * Build full MLPrediction with severity tiers
+ */
+function buildPrediction(
+    probability: number,
+    recallScore: number,
+    precisionScore: number,
+    threshold: number,
+    source: 'python' | 'heuristic',
+    sourceCode?: string
+): MLPrediction {
+    const { severity, message } = classifySeverity(probability);
+    const whitelist = sourceCode ? checkWhitelist(sourceCode) : { whitelisted: false };
+
+    // Apply whitelist safety valve
+    let finalProbability = probability;
+    let finalSeverity = severity;
+    let finalMessage = message;
+
+    if (whitelist.whitelisted && probability < 0.20) {
+        // Standard library with low risk - downgrade to SAFE
+        finalProbability = 0;
+        finalSeverity = RiskSeverity.SAFE;
+        finalMessage = `${whitelist.reason} - Whitelisted`;
+    }
+
+    return {
+        probability: finalProbability,
+        isVulnerable: finalProbability >= threshold,
+        severity: finalSeverity,
+        severityMessage: finalMessage,
+        confidence: Math.abs(probability - threshold) / Math.max(0.001, threshold),
+        recallModelScore: recallScore,
+        precisionModelScore: precisionScore,
+        threshold,
+        source,
+        whitelisted: whitelist.whitelisted,
+        whitelistReason: whitelist.reason,
+    };
+}
 
 /**
  * ML Inference Service with Python bridge
@@ -182,19 +308,19 @@ class MLInferenceService {
     /**
      * Handle Python response
      */
-    private handlePythonResponse(data: { probability?: number; recall_score?: number; precision_score?: number; is_vulnerable?: boolean; error?: string }): void {
+    private handlePythonResponse(data: { probability?: number; recall_score?: number; precision_score?: number; is_vulnerable?: boolean; error?: string }, sourceCode?: string): void {
         // Single-request model - resolve all pending
         for (const [, { resolve }] of this.pendingRequests.entries()) {
             if (data.probability !== undefined) {
-                resolve({
-                    probability: data.probability,
-                    isVulnerable: data.is_vulnerable || false,
-                    confidence: Math.abs(data.probability - this.config.threshold) / Math.max(0.001, this.config.threshold),
-                    recallModelScore: data.recall_score || 0,
-                    precisionModelScore: data.precision_score || 0,
-                    threshold: this.config.threshold,
-                    source: 'python',
-                });
+                const prediction = buildPrediction(
+                    data.probability,
+                    data.recall_score || 0,
+                    data.precision_score || 0,
+                    this.config.threshold,
+                    'python',
+                    sourceCode
+                );
+                resolve(prediction);
             }
         }
         this.pendingRequests.clear();
@@ -309,15 +435,14 @@ class MLInferenceService {
         const [recallWeight, precisionWeight] = this.config.weights;
         const probability = recallWeight * recallScore + precisionWeight * precisionScore;
 
-        return {
+        return buildPrediction(
             probability,
-            isVulnerable: probability >= this.config.threshold,
-            confidence: Math.abs(probability - this.config.threshold) / Math.max(0.001, this.config.threshold),
-            recallModelScore: recallScore,
-            precisionModelScore: precisionScore,
-            threshold: this.config.threshold,
-            source: 'heuristic',
-        };
+            recallScore,
+            precisionScore,
+            this.config.threshold,
+            'heuristic',
+            sourceCode
+        );
     }
 
     /**
