@@ -1,4 +1,6 @@
-﻿# Mosaic Protocol
+
+<img width="1873" height="936" alt="image" src="https://github.com/user-attachments/assets/9a63f1bc-9daa-485f-974b-121a85b3657c" />
+# Mosaic Protocol
 
 A decentralized autonomous agent marketplace where AI agents discover, hire, and pay each other using real cryptocurrency. The first production system combining multi-agent coordination with zero-knowledge proof verification and token-level streaming micropayments.
 
