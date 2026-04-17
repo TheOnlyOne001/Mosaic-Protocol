@@ -312,7 +312,7 @@ function createFullFeatureSet(
     contract: LabeledContract
 ): VulnerabilityFeatures {
     // Initialize all features to 0
-    const features: VulnerabilityFeatures = {
+    const features = {
         slither_high_high: 0,
         slither_high_medium: 0,
         slither_high_low: 0,
@@ -373,7 +373,7 @@ function createFullFeatureSet(
     // Apply source features
     Object.assign(features, sourceFeatures);
 
-    return features;
+    return features as unknown as VulnerabilityFeatures;
 }
 
 function countLabels(set: FeatureVector[]): { safe: number; exploit: number } {

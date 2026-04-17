@@ -13,7 +13,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 // Dynamic import for optional TensorFlow.js
-let tf: typeof import('@tensorflow/tfjs-node') | null = null;
+let tf: any = null;
 let tfLoadAttempted = false;
 
 async function loadTensorFlow(): Promise<boolean> {
@@ -21,6 +21,7 @@ async function loadTensorFlow(): Promise<boolean> {
   tfLoadAttempted = true;
   
   try {
+    // @ts-ignore - optional peer dependency
     tf = await import('@tensorflow/tfjs-node');
     return true;
   } catch {

@@ -519,7 +519,7 @@ export async function downloadLargeDatasets(): Promise<{
                         console.log(`   📄 ${file} (${fileSizeMB.toFixed(1)}MB) - streaming parse...`);
                         contracts = await parseCsvFileStreaming(filePath, {
                             labelField: dataset.labelField,
-                            labelMapping: dataset.labelMapping,
+                            labelMapping: dataset.labelMapping as unknown as Record<string, string>,
                             codeField: (dataset as any).codeField,
                             addressField: (dataset as any).addressField,
                             maxRows: 35000, // Limit to prevent memory issues
@@ -527,7 +527,7 @@ export async function downloadLargeDatasets(): Promise<{
                     } else {
                         contracts = parseCsvFile(filePath, {
                             labelField: dataset.labelField,
-                            labelMapping: dataset.labelMapping,
+                            labelMapping: dataset.labelMapping as unknown as Record<string, string>,
                             codeField: (dataset as any).codeField,
                             addressField: (dataset as any).addressField,
                         });

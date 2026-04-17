@@ -17,6 +17,7 @@ import * as fs from 'fs';
 import * as readline from 'readline';
 import { fileURLToPath } from 'url';
 import { extractSourcePatterns, getModelFeatureVector, VulnerabilityFeatures } from '../ml/training/SlitherFeatureExtractor.js';
+import { isWhitelisted, hasTrustedLibraryImport } from '../core/sharedWhitelist.js';
 
 // ES Module __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
@@ -63,17 +64,6 @@ const SEVERITY_THRESHOLDS = {
     LOW: 0.007,       // 0.7-15% = Low risk / code quality
     // < 0.007 = Safe
 };
-
-// Standard library whitelist patterns
-const WHITELISTED_LIBRARIES = [
-    '@openzeppelin',
-    'openzeppelin-contracts',
-    'solmate',
-    '@uniswap',
-    '@chainlink',
-    '@aave',
-    'prb-math',
-];
 
 // GOLDEN THRESHOLD for ~80% recall
 const GOLDEN_THRESHOLD = 0.007;
@@ -122,31 +112,7 @@ function classifySeverity(probability: number): { severity: RiskSeverity; messag
     };
 }
 
-/**
- * Check if source code uses whitelisted standard libraries
- */
-function checkWhitelist(sourceCode: string): { whitelisted: boolean; reason?: string } {
-    const lowerCode = sourceCode.toLowerCase();
-
-    for (const lib of WHITELISTED_LIBRARIES) {
-        if (sourceCode.includes(lib) || lowerCode.includes(lib.toLowerCase())) {
-            return {
-                whitelisted: true,
-                reason: `Uses trusted library: ${lib}`
-            };
-        }
-    }
-
-    // Check for OpenZeppelin-style patterns even without import
-    if (sourceCode.includes('ReentrancyGuard') && sourceCode.includes('nonReentrant')) {
-        return {
-            whitelisted: true,
-            reason: 'Uses ReentrancyGuard pattern'
-        };
-    }
-
-    return { whitelisted: false };
-}
+// Whitelist is now imported from sharedWhitelist.ts
 
 /**
  * Build full MLPrediction with severity tiers
@@ -160,18 +126,26 @@ function buildPrediction(
     sourceCode?: string
 ): MLPrediction {
     const { severity, message } = classifySeverity(probability);
-    const whitelist = sourceCode ? checkWhitelist(sourceCode) : { whitelisted: false };
+
+    // Use shared whitelist for strict checking
+    const whitelist = sourceCode ? isWhitelisted(sourceCode) : { safe: false, confidence: 'low' as const };
+    // Also check trusted imports for confidence boosting
+    const trustedImport = sourceCode ? hasTrustedLibraryImport(sourceCode) : { hasTrustedImport: false };
 
     // Apply whitelist safety valve
     let finalProbability = probability;
     let finalSeverity = severity;
     let finalMessage = message;
 
-    if (whitelist.whitelisted && probability < 0.20) {
-        // Standard library with low risk - downgrade to SAFE
+    if (whitelist.safe && probability < 0.20) {
+        // Strict whitelist match - this is an OZ library file
         finalProbability = 0;
         finalSeverity = RiskSeverity.SAFE;
-        finalMessage = `${whitelist.reason} - Whitelisted`;
+        finalMessage = `${whitelist.reason || 'Whitelisted library'} - Whitelisted`;
+    } else if (trustedImport.hasTrustedImport && probability < 0.10) {
+        // Has trusted import - reduce probability but don't skip analysis
+        finalProbability = probability * 0.5;
+        finalMessage = `${message} (uses ${trustedImport.library})`;
     }
 
     return {
@@ -179,12 +153,12 @@ function buildPrediction(
         isVulnerable: finalProbability >= threshold,
         severity: finalSeverity,
         severityMessage: finalMessage,
-        confidence: Math.abs(probability - threshold) / Math.max(0.001, threshold),
+        confidence: 0.8,
         recallModelScore: recallScore,
         precisionModelScore: precisionScore,
         threshold,
         source,
-        whitelisted: whitelist.whitelisted,
+        whitelisted: whitelist.safe,
         whitelistReason: whitelist.reason,
     };
 }

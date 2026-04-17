@@ -565,8 +565,9 @@ export class BytecodeFeatureExtractor {
     for (let i = 0; i < opcodes.length - 1; i++) {
       if (opcodes[i].name.startsWith('PUSH') && 
           (opcodes[i + 1].name === 'SSTORE' || opcodes[i + 1].name === 'SLOAD')) {
-        if (opcodes[i].push) {
-          slots.add(opcodes[i].push);
+        const pushVal = opcodes[i].push;
+        if (pushVal) {
+          slots.add(pushVal);
         }
       }
     }

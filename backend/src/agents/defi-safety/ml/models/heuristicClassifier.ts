@@ -292,7 +292,7 @@ export class HeuristicClassifier {
       
       triggeredRules.push({
         name: rule.name,
-        category: rule.category,
+        category: rule.category as 'honeypot' | 'rugpull' | 'exploit' | 'safe' | 'risky',
         weight: rule.weight,
         condition: rule.description,
         triggered,
