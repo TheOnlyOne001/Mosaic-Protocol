@@ -15,11 +15,13 @@
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.32.1",
+        "@moralisweb3/common-evm-utils": "^2.27.2",
         "cors": "^2.8.5",
         "dotenv": "^16.4.5",
         "ethers": "^6.13.4",
         "express": "^4.21.1",
         "groq-sdk": "^0.37.0",
+        "moralis": "^2.27.2",
         "onnxruntime-node": "^1.23.2",
         "ws": "^8.18.0"
     },

@@ -758,7 +758,7 @@ Respond with JSON:
                 tokenSymbol: findings.contract?.symbol || null,
                 tokenDecimals: findings.contract?.decimals || 18,
                 totalSupply: findings.contract?.totalSupply?.toString() || '0',
-                holderCount: findings.holders?.uniqueHolders || 0,
+                holderCount: (findings.holders as any)?.uniqueHolders || findings.holders?.topHolders?.length || 0,
                 top10HolderPercent: findings.holders?.top10Percent || 0,
                 top1HolderPercent: findings.holders?.largestHolderPercent || 0,
                 holderGiniCoefficient: 0,
